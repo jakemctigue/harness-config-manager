@@ -52,6 +52,8 @@ The editor runs built-in checks as you work, and **Check all files** in the Conf
 
 **Stop and start.** The top bar also has **Stop all harnesses** and **Start all harnesses**, and each row on the Harnesses tab has **Stop all instances** and **Start all instances**. Stopping lists the exact processes (untick any, including your Claude Code session), closes them the same graceful-then-forced way as a restart, and remembers what was open: one entry per app, or one per CLI instance with its folder and command (the row shows "N stopped by this app"). Starting reopens exactly that, using the same fresh environment as a restart; with nothing remembered, a row's **Start all instances** opens one instance, while **Start all harnesses** does nothing and says so (it never launches harnesses that this app did not stop). An app that is already running is skipped, and the remembered entry is cleared once its harness has started.
 
+**One instance at a time.** Under each harness row, every running instance (PID, folder, command) has its own **Stop** button, which closes only that one and remembers it. The row's **Start one** opens a single new instance, and each remembered entry has a **Start** button that reopens just that one and removes it from the list.
+
 ## Restarting MCP servers
 
 In the MCP servers tab, **Show running processes** finds every live process for each configured server and the harness that owns it (Claude Code, Claude Desktop, ChatGPT / Codex app, VS Code...). Stdio servers are matched by their command line; local HTTP servers by the port they listen on.

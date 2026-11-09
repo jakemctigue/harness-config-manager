@@ -697,7 +697,14 @@ async function renderHarnesses() {
       <td class="num">${x.running ? `<span class="badge ok">${x.running} running</span>` : '<span class="badge">stopped</span>'}</td>
       <td class="mono" title="${esc(x.installed || '')}">${esc(x.installed || '')}</td>
       <td class="mono">${x.kind === 'cli' ? esc(x.command) + (x.cwd ? ' <span class="badge">in ' + esc(x.cwd) + '</span>' : '') : ''}${Object.keys(x.env || {}).length ? ` <span class="badge">+${Object.keys(x.env).length} env</span>` : ''}</td>
-      <td><button class="restart" data-hrestart ${x.running || x.canLaunch ? '' : 'disabled'}>${x.running ? 'Restart just this harness' : 'Start'}</button> <button data-hstop ${x.running ? '' : 'disabled'} title="Close every running instance of ${esc(x.label)}; this app remembers what was open">Stop all instances</button> <button data-hstart ${x.canLaunch ? '' : 'disabled'} title="Reopens what this app stopped, or one new instance if nothing was stopped">Start all instances</button> <button data-hprefs>Launch settings…</button></td></tr>`;
+      <td><button class="restart" data-hrestart ${x.running || x.canLaunch ? '' : 'disabled'}>${x.running ? 'Restart just this harness' : 'Start'}</button> <button data-hstop ${x.running ? '' : 'disabled'} title="Close every running instance of ${esc(x.label)}; this app remembers what was open">Stop all instances</button> <button data-hstart ${x.canLaunch ? '' : 'disabled'} title="Reopens what this app stopped, or one new instance if nothing was stopped">Start all instances</button> <button data-hstartone ${x.canLaunch ? '' : 'disabled'} title="Open one new instance of ${esc(x.label)}">Start one</button> <button data-hprefs>Launch settings…</button></td></tr>`;
+    // per-instance controls: running instances (Stop) and what this app stopped (Start)
+    const subs = [];
+    for (const i of x.instances || []) subs.push(`<div class="inst">PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} · <code title="${esc(i.cmd)}">${esc(i.cmd)}</code> <button data-hstoppid data-pid="${i.pid}" title="Close only PID ${i.pid}; this app remembers it so Start can reopen it">Stop</button></div>`);
+    const rec = x.stopped;
+    if (rec && rec.gui) subs.push(`<div class="inst"><span class="badge warn">stopped</span> the app <button data-hstartrec data-idx="0">Start</button></div>`);
+    else if (rec) (rec.cli || []).forEach((c, n) => subs.push(`<div class="inst"><span class="badge warn">stopped</span> ${esc(c.cwd)} · <code>${esc(c.command)}</code> <button data-hstartrec data-idx="${n}">Start</button></div>`));
+    if (subs.length) h += `<tr data-hid="${esc(x.id)}" class="hsub"><td colspan="6">${subs.join('')}</td></tr>`;
   }
   $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No harnesses found.</td></tr></tbody>';
   $('scope').innerHTML = `${rows.filter((x) => x.running).length} running of ${rows.length} found`;
@@ -724,13 +731,15 @@ function harnessPrefs(id) {
   };
 }
 // mode: 'restart' (close + reopen), 'stop' (close, remember what was open), 'start' (reopen what this app stopped)
-async function confirmRestart(ids, title, mode = 'restart') {
+// onlyPid (stop mode): list and stop just that one instance
+async function confirmRestart(ids, title, mode = 'restart', onlyPid = null) {
   const st = await loadHarnesses(true);
   const all = ids.includes('*');
   const targets = st.harnesses.filter((h) => all ? (mode === 'start' ? h.stoppedCount : h.running) : ids.includes(h.id));
   if (!targets.length) return toast(mode === 'start' && all ? 'Nothing to start: this app has not stopped any harness.' : all ? 'No coding harnesses are running.' : 'That harness was not found on this machine.', true);
   if (mode === 'stop' && !targets.some((h) => h.running)) return toast(all ? 'No coding harnesses are running.' : `${targets[0].label} is not running.`, true);
-  const who = all ? (mode === 'start' ? 'Every harness below that this app stopped' : 'Every running coding harness below') : 'This harness';
+  if (onlyPid && !targets[0].instances.some((i) => i.pid === onlyPid)) return toast(`PID ${onlyPid} is no longer running.`, true);
+  const who = all ? (mode === 'start' ? 'Every harness below that this app stopped' : 'Every running coding harness below') : onlyPid ? 'This instance' : 'This harness';
   let body = mode === 'stop' ? `<p>${who} will be closed (politely first, forced after a few seconds). This app remembers what was open so Start can reopen it. Unsaved work in those windows may be lost.</p>`
     : mode === 'start' ? `<p>${who} will be opened again with a fresh environment, as listed below.</p>`
     : `<p>${who} will be closed and reopened with fresh environment variables, skills, plugins, MCP servers and instruction files. Unsaved work in those windows may be lost.</p>`;
@@ -744,11 +753,11 @@ async function confirmRestart(ids, title, mode = 'restart') {
       continue;
     }
     body += `<div style="margin:10px 0 2px"><b>${esc(h.label)}</b> ${h.running ? '' : mode === 'stop' ? '<span class="badge">not running</span>' : '<span class="badge">not running; it will be started</span>'}</div>`;
-    for (const i of h.instances) body += `<label class="inst"><input type="checkbox" class="rpid" data-h="${esc(h.id)}" value="${i.pid}" checked> PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} <code title="${esc(i.cmd)}">${esc(i.cmd)}</code></label>`;
+    for (const i of h.instances.filter((i) => !onlyPid || i.pid === onlyPid)) body += `<label class="inst"><input type="checkbox" class="rpid" data-h="${esc(h.id)}" value="${i.pid}" checked> PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} <code title="${esc(i.cmd)}">${esc(i.cmd)}</code></label>`;
   }
   if (mode !== 'start' && targets.some((h) => h.id === 'claude-code' && h.running)) body += `<p class="hint">If you are using Claude Code to run or talk to this app, that session is in the list too. Untick it to keep it open.</p>`;
   const noun = all ? 'all harnesses' : targets[0].label;
-  const dflt = mode === 'stop' ? (all ? 'Stop all harnesses?' : `Stop all instances of ${noun}?`) : mode === 'start' ? (all ? 'Start all harnesses?' : `Start ${noun}?`) : (all ? 'Restart all coding harnesses?' : `Restart ${noun}?`);
+  const dflt = mode === 'stop' ? (all ? 'Stop all harnesses?' : onlyPid ? `Stop PID ${onlyPid} of ${noun}?` : `Stop all instances of ${noun}?`) : mode === 'start' ? (all ? 'Start all harnesses?' : `Start ${noun}?`) : (all ? 'Restart all coding harnesses?' : `Restart ${noun}?`);
   const btn = mode === 'stop' ? (all ? 'Stop all' : 'Stop') : mode === 'start' ? (all ? 'Start all' : 'Start') : (all ? 'Restart all' : targets[0].running ? 'Restart' : 'Start');
   openModal(title || dflt, body, `<button onclick="closeModal()">Cancel</button><button class="primary" id="doRestart">${btn}</button>`);
   $('doRestart').onclick = async () => {
@@ -770,6 +779,28 @@ async function confirmRestart(ids, title, mode = 'restart') {
 }
 function confirmRestartAll() { confirmRestart(['*']); }
 function confirmStop(ids) { confirmRestart(ids, null, 'stop'); }
+function confirmStopPid(id, pid) { confirmRestart([id], null, 'stop', pid); }
+// Start ONE instance. index (optional): which recorded entry of this app's stop record to reopen.
+function confirmStartOne(id, index) {
+  const x = S.harn.harnesses.find((h) => h.id === id);
+  if (!x) return;
+  const rec = x.stopped;
+  const hasIdx = index !== undefined && index !== null && rec;
+  const what = hasIdx ? (x.kind === 'gui' ? 'the app' : `a new terminal in <code>${esc(((rec.cli || [])[index] || {}).cwd || '')}</code> running <code>${esc(((rec.cli || [])[index] || {}).command || '')}</code>`)
+    : x.kind === 'gui' ? 'the app (skipped if it is already running)' : `one new terminal running <code>${esc(x.command)}</code>`;
+  openModal(`Start one instance of ${x.label}?`, `<p>This opens ${what}, with a fresh environment.</p>`, `<button onclick="closeModal()">Cancel</button><button class="primary" id="doStartOne">Start</button>`);
+  $('doStartOne').onclick = async () => {
+    closeModal();
+    busy(true, 'Starting…');
+    try {
+      const r = await api('POST', '/api/harnesses/start-one', hasIdx ? { id, index } : { id });
+      const lines = r.results.map((y) => `${y.label}: opened ${y.launched}` + (y.notes.length ? `\n  ${y.notes.join('\n  ')}` : ''));
+      toast((lines.join('\n') || 'Nothing to do.') + (r.errors.length ? '\n' + r.errors.join('\n') : ''), r.errors.length > 0);
+    } catch (e) { toast('Start failed: ' + e.message, true); }
+    busy(false);
+    setTimeout(() => loadHarnesses(true).then(() => S.tab === 'harnesses' && render()), 2500);
+  };
+}
 function confirmStart(ids) { confirmRestart(ids, null, 'start'); }
 async function restartByLabel(label) {
   try { const r = await api('GET', '/api/harness-id?label=' + encodeURIComponent(label)); if (!r.id) return toast(`Don't know how to restart "${label}". Restart it yourself or use the Harnesses tab.`, true); confirmRestart([r.id]); }
@@ -966,6 +997,9 @@ $('table').onclick = (e) => {
     if (e.target.hasAttribute('data-hstop')) return confirmStop([hr.dataset.hid]);
     if (e.target.hasAttribute('data-hstart')) return confirmStart([hr.dataset.hid]);
     if (e.target.hasAttribute('data-hprefs')) return harnessPrefs(hr.dataset.hid);
+    if (e.target.hasAttribute('data-hstartone')) return confirmStartOne(hr.dataset.hid);
+    if (e.target.hasAttribute('data-hstoppid')) return confirmStopPid(hr.dataset.hid, Number(e.target.dataset.pid));
+    if (e.target.hasAttribute('data-hstartrec')) return confirmStartOne(hr.dataset.hid, Number(e.target.dataset.idx));
     return;
   }
   const tr = e.target.closest('tr[data-name]'); if (!tr) return;

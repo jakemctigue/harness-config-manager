@@ -83,6 +83,7 @@ const routes = {
   'POST /api/harnesses/restart': (q, b) => harness.restart(b),
   'POST /api/harnesses/stop': (q, b) => harness.stop(b),
   'POST /api/harnesses/start': (q, b) => harness.start(b),
+  'POST /api/harnesses/start-one': (q, b) => harness.startInstance(b),
   'POST /api/harnesses/prefs': (q, b) => harness.setPrefs(b),
   'GET /api/harness-id': (q) => ({ id: harness.idForLabel(q.get('label')) }),
   'POST /api/reveal': (q, b) => { P.reveal(userPath(b.path)); return { ok: true }; },

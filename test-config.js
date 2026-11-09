@@ -267,6 +267,46 @@ assert.strictEqual(mcpproc.localPort('https://example.com/mcp'), null);
     assert.strictEqual(launched.term.length, 2);
     assert(!stoppedNow()['claude-code'], 'restart leaves no record');
     assert.deepStrictEqual(await harness.restartOne(cc, none, { startIfStopped: false }), { id: 'claude-code', label: 'Claude Code', closed: 0, forced: 0, launched: 0, notes: ['not running'] });
+
+    // ---------- per-instance stop / start ----------
+    const dirB = path.join(HOME, 'proj-b');
+    fs.mkdirSync(dirB, { recursive: true });
+    const tr = { at: 'x', gui: null, cli: [{ cwd: '/a', command: 'c1' }, { cwd: dirB, command: 'c2' }, { cwd: '/c', command: 'c3' }] };
+    const t1 = harness.takeRecordEntry(tr, 1);
+    assert.deepStrictEqual(t1.entry, { cwd: dirB, command: 'c2' });
+    assert.deepStrictEqual(t1.rest.cli, [{ cwd: '/a', command: 'c1' }, { cwd: '/c', command: 'c3' }], 'removes exactly one entry');
+    assert.strictEqual(tr.cli.length, 3, 'input record not mutated');
+    const last = harness.takeRecordEntry({ at: 'x', gui: null, cli: [{ cwd: '/a', command: 'c1' }] }, 0);
+    assert(last.entry && last.rest === null, 'last entry leaves no record');
+    assert(harness.takeRecordEntry(tr, 9).entry === null && harness.takeRecordEntry(null, 0).entry === null, 'out of range / no record: no entry');
+    assert.deepStrictEqual(harness.takeRecordEntry({ at: 'x', gui: { exe: 'E', msixAppId: null }, cli: [] }, 0).entry, { exe: 'E', msixAppId: null });
+
+    // stopping one pid terminates only that pid and records one entry
+    terminated = []; launched.term.length = 0;
+    const sone = await harness.stopOne(cc, fsnap, { pids: [32] });
+    assert.deepStrictEqual(terminated.slice(-1), [32], 'only the chosen pid is terminated');
+    assert(!terminated.includes(31), 'other instance left alone');
+    assert.strictEqual(sone.record.cli.length, 1);
+    U.saveState(Object.assign(U.loadState(), { stoppedHarnesses: {} }));
+
+    // start one recorded entry: one terminal, the others stay recorded
+    harness.saveStopRecord('claude-code', tr);
+    launched.term.length = 0;
+    const si = await harness.startInstance({ id: 'claude-code', index: 1 });
+    assert.deepStrictEqual(si.errors, []);
+    assert.deepStrictEqual(Object.keys(si.results[0]).sort(), ['closed', 'forced', 'id', 'label', 'launched', 'notes']);
+    assert.deepStrictEqual(launched.term, [{ command: 'c2', cwd: dirB }], 'one terminal with the recorded cwd and command');
+    assert.deepStrictEqual(stoppedNow()['claude-code'].cli.map((c) => c.command), ['c1', 'c3'], 'others stay in the record');
+
+    // start one fresh instance: one terminal, record untouched
+    launched.term.length = 0;
+    const sf = await harness.startInstance({ id: 'claude-code' });
+    assert.strictEqual(sf.results[0].launched, 1);
+    assert.strictEqual(launched.term.length, 1);
+    assert.strictEqual(launched.term[0].command, 'claude --continue');
+    assert.strictEqual(stoppedNow()['claude-code'].cli.length, 2, 'record untouched by a fresh start');
+    assert.strictEqual((await harness.startInstance({ id: 'nope' })).errors.length, 1);
+    U.saveState(Object.assign(U.loadState(), { stoppedHarnesses: {} }));
   } finally { Object.assign(P, orig); }
 
   fs.rmSync(HOME, { recursive: true, force: true });
