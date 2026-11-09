@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Config Manager</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --text: #1b1f24; --muted: #5f6b7a; --line: #dde1e7;
+  --accent: #3b6fe0; --accent-soft: #e6eefc; --ok: #1f9d55; --warn: #c27c0e; --bad: #d14343; --sel: #fff6d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --panel: #1b1f26; --panel2: #232833; --text: #e6e9ee; --muted: #9aa5b4; --line: #2e3440;
+    --accent: #6c9bff; --accent-soft: #23314f; --ok: #3ccf7f; --warn: #e8a33a; --bad: #ff6b6b; --sel: #3a3420;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, Ubuntu, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+code, pre, textarea.code { font-family: ui-monospace, "Cascadia Code", Consolas, Menlo, "DejaVu Sans Mono", monospace; }
+button { font: inherit; color: inherit; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.danger { color: var(--bad); }
+button.restart { border-color: var(--warn); }
+button:disabled { opacity: .5; cursor: default; }
+input[type=search], input[type=text], input[type=password], input[type=number], select, textarea { font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; }
+header.top { display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.tabs button { border: none; background: none; padding: 6px 10px; border-radius: 6px; color: var(--muted); }
+.tabs button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.stats { margin-left: auto; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+.stats b { color: var(--text); }
+main { flex: 1; display: flex; min-height: 0; }
+aside { width: 250px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+aside .head { padding: 10px; border-bottom: 1px solid var(--line); }
+aside .head input { width: 100%; }
+aside ul { list-style: none; margin: 0; padding: 4px; overflow: auto; flex: 1; }
+aside li { padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 6px; }
+aside li.grp { cursor: default; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding-top: 12px; }
+aside li:not(.grp):hover { background: var(--panel2); }
+aside li.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+aside li .n { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; white-space: nowrap; }
+aside li .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+section.content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.toolbar input[type=search] { flex: 1; min-width: 200px; }
+.scope { color: var(--muted); }
+.scope b { color: var(--text); }
+.bulk { display: none; gap: 8px; align-items: center; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bulk.show { display: flex; }
+.tablewrap { flex: 1; overflow: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { position: sticky; top: 0; background: var(--panel2); font-weight: 600; color: var(--muted); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; }
+tr:hover td { background: var(--panel); }
+tr.sel td { background: var(--sel); }
+tr.active td { box-shadow: inset 3px 0 0 var(--accent); }
+tr.dim td { opacity: .6; }
+td.name { font-weight: 600; white-space: nowrap; }
+td.desc { color: var(--muted); max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.mono { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 10px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); margin-left: 4px; font-weight: 400; }
+.badge.bad { color: var(--bad); border-color: var(--bad); }
+.badge.warn { color: var(--warn); border-color: var(--warn); }
+.badge.ok { color: var(--ok); border-color: var(--ok); }
+.sw { position: relative; width: 34px; height: 18px; border-radius: 9px; background: var(--line); border: none; padding: 0; flex: none; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left .12s; }
+.sw.on { background: var(--ok); }
+.sw.on::after { left: 18px; }
+.sw.mixed { background: var(--warn); }
+.sw.mixed::after { left: 10px; }
+.sw:disabled { opacity: .35; }
+.detail { width: 380px; background: var(--panel); border-left: 1px solid var(--line); overflow: auto; padding: 14px; display: none; }
+.detail.show { display: block; }
+.detail h2 { margin: 0 0 4px; font-size: 16px; word-break: break-all; }
+.detail p { color: var(--muted); }
+.detail .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.detail .row .h { flex: 1; min-width: 0; }
+.detail .row .h div:last-child { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.toast { position: fixed; right: 16px; bottom: 16px; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.2); display: none; white-space: pre-wrap; z-index: 50; }
+.toast.show { display: block; }
+.toast.err { border-color: var(--bad); }
+.toast button { margin-top: 8px; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 30; }
+.modal.show { display: flex; }
+.modal .box { background: var(--panel); border-radius: 10px; width: min(980px, 94vw); max-height: 90vh; display: flex; flex-direction: column; border: 1px solid var(--line); }
+.modal .box > header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.modal .box > header h1 { font-size: 15px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal pre { margin: 0; padding: 12px; overflow: auto; white-space: pre-wrap; font-size: 12px; line-height: 1.45; background: var(--panel2); border-radius: 6px; }
+.modal .body { padding: 14px; overflow: auto; flex: 1; min-height: 0; }
+.modal footer { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; align-items: center; }
+.modal label.f { display: block; margin: 10px 0 4px; font-weight: 600; }
+.modal .hint { color: var(--muted); font-size: 12px; }
+.modal input[type=text], .modal input[type=password], .modal input[type=number] { width: 100%; }
+textarea.code { width: 100%; min-height: 46vh; font-size: 12.5px; line-height: 1.45; tab-size: 2; resize: vertical; white-space: pre; }
+.issues { list-style: none; padding: 0; margin: 8px 0; }
+.issues li { padding: 4px 8px; border-left: 3px solid var(--line); margin: 3px 0; background: var(--panel2); border-radius: 0 4px 4px 0; }
+.issues li.error { border-color: var(--bad); }
+.issues li.warn { border-color: var(--warn); }
+.issues li.info { border-color: var(--accent); }
+.busy { position: fixed; inset: 0; background: rgba(0,0,0,.15); display: none; z-index: 40; cursor: progress; align-items: center; justify-content: center; }
+.busy.show { display: flex; }
+.busy span { background: var(--panel); padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); }
+.note { color: var(--muted); font-size: 12px; padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+.drop { position: fixed; inset: 0; border: 4px dashed var(--accent); background: rgba(59,111,224,.12); display: none; z-index: 60; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; color: var(--accent); pointer-events: none; }
+.drop.show { display: flex; }
+.inst { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 12px; }
+.inst code { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 900px) { aside { width: 180px; } .detail { width: 300px; } .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Harness Config Manager</h1>
+  <div class="tabs">
+    <button data-tab="skills" class="on">Skills</button>
+    <button data-tab="mcp">MCP servers</button>
+    <button data-tab="plugins">Plugins &amp; extensions</button>
+    <button data-tab="files">Config files</button>
+    <button data-tab="env">Env vars</button>
+    <button data-tab="harnesses">Harnesses</button>
+    <button data-tab="trash">Trash</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <button id="mcpbBtn" title="Install a .mcpb / .dxt bundle (or drop one on the window)">Install .mcpb…</button>
+  <button id="restartAll" class="restart" title="Close and reopen every running coding harness with fresh env vars and config">Restart all coding harnesses</button>
+  <button id="refresh" title="Rescan everything">Rescan</button>
+  <input type="file" id="mcpbFile" accept=".mcpb,.dxt" hidden>
+</header>
+<main>
+  <aside>
+    <div class="head"><input type="search" id="hsearch" placeholder="Filter list"></div>
+    <ul id="hlist"></ul>
+  </aside>
+  <section class="content">
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search  ( / )">
+      <select id="filter"></select>
+      <span class="scope" id="scope"></span>
+      <span id="tbExtra" style="display:flex;gap:8px"></span>
+    </div>
+    <div class="bulk" id="bulk">
+      <b id="selcount"></b>
+      <button id="bDisable">Disable</button>
+      <button id="bEnable">Enable</button>
+      <button id="bPrune" class="danger">Uninstall (to Trash)…</button>
+      <button id="bRestore">Restore</button>
+      <button id="bMcpRestart" class="restart">Restart selected servers</button>
+      <button id="bClear" style="margin-left:auto">Clear selection</button>
+    </div>
+    <div class="tablewrap"><table id="table"></table></div>
+    <div class="note" id="note"></div>
+  </section>
+  <div class="detail" id="detail"></div>
+</main>
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal"><div class="box"><header><h1 id="mtitle"></h1><button style="margin-left:auto" onclick="closeModal()">Close</button></header><div id="mbody" class="body"></div><footer id="mfoot"></footer></div></div>
+<div class="busy" id="busy"><span id="busyMsg">Working…</span></div>
+<div class="drop" id="drop">Drop a .mcpb bundle to install it</div>
+<script>
+const TOKEN = '__SKM_TOKEN__';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const S = { data: null, tab: 'skills', scope: { skills: 'all', mcp: 'all', plugins: 'all', files: 'all', env: 'all' }, search: '', filter: 'all',
+  sel: new Set(), active: null, sort: { key: 'name', dir: 1 }, files: null, skillFiles: {}, env: null, harn: null };
+const FM = navigator.platform.startsWith('Mac') ? 'Finder' : navigator.platform.startsWith('Win') ? 'Explorer' : 'file manager';
+
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'x-skm-token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function busy(on, msg) { $('busyMsg').textContent = msg || 'Working…'; $('busy').className = 'busy' + (on ? ' show' : ''); }
+function toast(msg, err, actionHtml) {
+  const t = $('toast');
+  t.innerHTML = esc(msg) + (actionHtml ? '<div>' + actionHtml + '</div>' : ''); t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', err ? 14000 : actionHtml ? 9000 : 4500);
+}
+
+async function load() {
+  busy(true, 'Scanning…');
+  try { S.data = await api('GET', '/api/scan'); } catch (e) { toast('Scan failed: ' + e.message, true); }
+  busy(false);
+  S.files = null; S.env = null; S.skillFiles = {};
+  render();
+  if (S.data && S.data.openFile && !S._opened) { S._opened = true; openMcpb({ localPath: S.data.openFile, fileName: S.data.openFile.split(/[\\/]/).pop() }); }
+}
+
+// Run a change, then offer to restart the affected harness.
+async function act(url, body, label, restartLabel) {
+  busy(true);
+  let ok = false;
+  try {
+    const r = await api('POST', url, body);
+    const errs = r.errors || [];
+    ok = r.changed > 0;
+    const msg = `${label}: ${r.changed} change${r.changed === 1 ? '' : 's'}` + (errs.length ? `\n${errs.length} problem(s):\n` + errs.slice(0, 8).join('\n') + (errs.length > 8 ? '\n…' : '') : '');
+    const rl = restartLabel || currentHarnessLabel();
+    toast(msg, errs.length > 0, ok ? (rl ? `<button class="restart" onclick="restartByLabel('${esc(rl)}')">Restart ${esc(rl)} now</button> ` : '') +
+      `<button onclick="confirmRestartAll()">Restart all coding harnesses</button>` : '');
+  } catch (e) { toast(label + ' failed: ' + e.message, true); }
+  S.data = await api('GET', '/api/scan').catch(() => S.data);
+  S.files = null; S.env = null;
+  busy(false);
+  render();
+  return ok;
+}
+
+function currentHarnessLabel() {
+  const sc = S.scope[S.tab];
+  if (!sc || sc === 'all') return null;
+  if (S.tab === 'skills') return (skillHarnessMap()[sc] || {}).label;
+  if (S.tab === 'mcp') return sc.split('|')[0];
+  if (S.tab === 'plugins') return sc;
+  return null;
+}
+
+// ---------- skills ----------
+function skillHarnessMap() { return Object.fromEntries(S.data.skills.harnesses.map((h) => [h.id, h])); }
+function scopedInstalls(s) { const sc = S.scope.skills; return sc === 'all' ? s.installs : s.installs.filter((i) => i.harness === sc); }
+function skillState(s) {
+  const ins = scopedInstalls(s);
+  const on = ins.filter((i) => i.enabled).length;
+  return { ins, on, total: ins.length, mode: !ins.length ? 'none' : on === ins.length ? 'on' : on === 0 ? 'off' : 'mixed' };
+}
+const SKILL_FILTERS = {
+  all: ['All skills', () => true],
+  enabled: ['Enabled', (s, st) => st.mode === 'on'],
+  disabled: ['Disabled', (s, st) => st.mode === 'off'],
+  mixed: ['Partly enabled', (s, st) => st.mode === 'mixed'],
+  unlinked: ['In store, linked nowhere', (s) => s.inStore && !s.installs.length],
+  local: ['Local copies (not from store)', (s, st) => st.ins.some((i) => i.local)],
+  dupes: ['Duplicated real copies', (s) => s.installs.filter((i) => i.kind === 'dir').length + (s.inStore ? 1 : 0) > 1],
+  broken: ['Broken links', (s, st) => st.ins.some((i) => i.broken)],
+  wide: ['In 20+ harnesses', (s) => s.installs.length >= 20],
+};
+
+function visibleSkills() {
+  const q = S.search.toLowerCase();
+  const f = SKILL_FILTERS[S.filter] ? SKILL_FILTERS[S.filter][1] : () => true;
+  const rows = [];
+  for (const s of S.data.skills.skills) {
+    if (s.trashed) continue;
+    const st = skillState(s);
+    if (S.scope.skills !== 'all' && !st.total) continue;
+    if (q && !(s.name.toLowerCase().includes(q) || (s.description || '').toLowerCase().includes(q) || (s.source || '').toLowerCase().includes(q))) continue;
+    if (!f(s, st)) continue;
+    rows.push({ s, st });
+  }
+  const { key, dir } = S.sort;
+  const val = (r) => key === 'count' ? r.st.total : key === 'on' ? r.st.on : key === 'source' ? (r.s.source || '~') : r.s.name.toLowerCase();
+  rows.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * dir || a.s.name.localeCompare(b.s.name));
+  return rows;
+}
+
+function renderSkills() {
+  const hm = skillHarnessMap();
+  const rows = visibleSkills();
+  S.visible = rows.map((r) => r.s.name);
+  const allSel = rows.length && rows.every((r) => S.sel.has(r.s.name));
+  const arrow = (k) => S.sort.key === k ? (S.sort.dir > 0 ? ' ▲' : ' ▼') : '';
+  let h = `<thead><tr><th style="width:28px"><input type="checkbox" id="selall" ${allSel ? 'checked' : ''}></th>
+    <th data-sort="name">Skill${arrow('name')}</th><th>Description</th><th data-sort="source">Source${arrow('source')}</th>
+    <th data-sort="count">${S.scope.skills === 'all' ? 'Harnesses' : 'Installed'}${arrow('count')}</th><th style="width:60px">On</th></tr></thead><tbody>`;
+  for (const { s, st } of rows) {
+    const badges = (s.inStore ? '' : '<span class="badge warn">local</span>') + (st.ins.some((i) => i.broken) ? '<span class="badge bad">broken</span>' : '');
+    const count = S.scope.skills === 'all' ? (st.total ? `${st.on}/${st.total}` : '<span class="badge">unlinked</span>') : (st.ins[0].kind === 'link' ? 'link' : 'folder');
+    h += `<tr data-name="${esc(s.name)}" class="${S.sel.has(s.name) ? 'sel' : ''} ${S.active === s.name ? 'active' : ''}">
+      <td><input type="checkbox" class="rowsel" ${S.sel.has(s.name) ? 'checked' : ''}></td>
+      <td class="name">${esc(s.name)}${badges}</td><td class="desc" title="${esc(s.description)}">${esc(s.description)}</td>
+      <td class="desc" style="max-width:180px">${esc(s.source || (s.inStore ? 'store' : ''))}</td>
+      <td class="num">${count}</td>
+      <td><button class="sw ${st.mode}" data-toggle ${st.mode === 'none' ? 'disabled' : ''} title="${st.mode === 'mixed' ? 'Partly enabled; click to disable all' : ''}"></button></td></tr>`;
+  }
+  h += '</tbody>';
+  $('table').innerHTML = rows.length ? h : '<tbody><tr><td class="empty">No skills match.</td></tr></tbody>';
+  const sc = S.scope.skills;
+  $('scope').innerHTML = sc === 'all' ? `Toggles apply to <b>all harnesses</b> · ${rows.length} shown` : `Toggles apply to <b>${esc(hm[sc] ? hm[sc].label : sc)}</b> only · ${rows.length} shown`;
+  $('note').textContent = `Disabling removes the harness's link (or moves a real folder to ${S.data.data}/disabled). Uninstall moves the store copy to ${S.data.data}/trash and the Trash tab restores it. Nothing is hard-deleted. Restart the harness to load the change.`;
+  renderSkillDetail();
+}
+
+function renderSkillDetail() {
+  const d = $('detail');
+  const s = S.active && S.data.skills.skills.find((x) => x.name === S.active);
+  if (!s || S.tab !== 'skills') { d.className = 'detail'; return; }
+  const hm = skillHarnessMap();
+  let h = `<h2>${esc(s.name)}</h2><p>${esc(s.description || 'No description')}</p>
+    <div>${s.inStore ? '<span class="badge ok">in ~/.agents/skills</span>' : '<span class="badge warn">not in store</span>'}${s.source ? `<span class="badge">${esc(s.source)}</span>` : ''}</div>
+    <div class="actions"><button data-d="view">View SKILL.md</button><button data-d="files">Edit skill files…</button>
+    <button data-d="all-off">Disable everywhere</button><button data-d="all-on">Enable everywhere</button>
+    <button data-d="prune" class="danger">Uninstall…</button></div>
+    <div style="color:var(--muted);margin:8px 0 4px">${s.installs.length} install(s), ${s.installs.filter((i) => i.enabled).length} enabled</div>`;
+  for (const i of s.installs) {
+    h += `<div class="row"><div class="h"><div>${esc(hm[i.harness] ? hm[i.harness].label : i.harness)} ${i.kind === 'dir' ? '<span class="badge warn">folder</span>' : ''}${i.broken ? '<span class="badge bad">broken</span>' : ''}${i.reason === 'prune' ? '<span class="badge bad">uninstalled</span>' : ''}</div>
+      <div title="${esc(i.path)}">${esc(i.path)}${i.target ? ' → ' + esc(i.target) : ''}</div></div>
+      ${i.enabled ? `<button data-reveal="${esc(i.path)}" title="Show in ${FM}">📂</button>` : ''}
+      <button class="sw ${i.enabled ? 'on' : 'off'}" data-h="${esc(i.harness)}"></button></div>`;
+  }
+  if (!s.installs.length) h += '<p>This skill is in the store but no harness links to it.</p>';
+  d.innerHTML = h; d.className = 'detail show';
+}
+
+function sidebar(items, allLabel, allCount) {
+  const q = $('hsearch').value.toLowerCase();
+  const sc = S.scope[S.tab];
+  let h = `<li data-scope="all" class="${sc === 'all' ? 'on' : ''}"><span class="lbl">${esc(allLabel)}</span><span class="n">${allCount}</span></li>`;
+  for (const x of items) {
+    if (x.grp) { h += `<li class="grp">${esc(x.grp)}</li>`; continue; }
+    if (q && !(x.label.toLowerCase().includes(q) || (x.title || '').toLowerCase().includes(q))) continue;
+    h += `<li data-scope="${esc(x.id)}" title="${esc(x.title || x.label)}" class="${sc === x.id ? 'on' : ''}"><span class="lbl">${esc(x.label)}</span><span class="n">${x.n}</span></li>`;
+  }
+  $('hlist').innerHTML = h;
+}
+const countHtml = (x) => `${x.enabled}${x.disabled ? ` <span style="color:var(--bad)">−${x.disabled}</span>` : ''}`;
+
+function renderSkillSidebar() {
+  sidebar(S.data.skills.harnesses.map((x) => ({ id: x.id, label: x.label, title: x.path, n: countHtml(x) })), 'All harnesses', S.data.skills.skills.filter((s) => !s.trashed).length);
+}
+
+// ---------- mcp ----------
+function scopedMcp(s) { const sc = S.scope.mcp; return sc === 'all' ? s.installs : s.installs.filter((i) => i.hid === sc); }
+function mcpState(s) {
+  const ins = scopedMcp(s);
+  const on = ins.filter((i) => i.enabled).length;
+  return { ins, on, total: ins.length, ro: ins.length && ins.every((i) => !i.editable), mode: !ins.length ? 'none' : on === ins.length ? 'on' : on === 0 ? 'off' : 'mixed' };
+}
+const MCP_FILTERS = {
+  all: ['All servers', () => true], enabled: ['Enabled', (s, st) => st.mode === 'on'], disabled: ['Disabled', (s, st) => st.mode === 'off'],
+  mixed: ['Partly enabled', (s, st) => st.mode === 'mixed'], ro: ['Read-only configs', (s, st) => st.ins.some((i) => !i.editable)],
+  native: ['Already off inside harness', (s, st) => st.ins.some((i) => i.nativeOff)],
+};
+
+function renderMcp() {
+  const q = S.search.toLowerCase();
+  const f = MCP_FILTERS[S.filter] ? MCP_FILTERS[S.filter][1] : () => true;
+  const rows = [];
+  for (const s of S.data.mcp.servers) {
+    const st = mcpState(s);
+    if (!st.total) continue;
+    if (q && !(s.name.toLowerCase().includes(q) || s.installs.some((i) => (i.summary || '').toLowerCase().includes(q)))) continue;
+    if (!f(s, st)) continue;
+    rows.push({ s, st });
+  }
+  const dir = S.sort.dir;
+  rows.sort((a, b) => S.sort.key === 'count' ? (a.st.total - b.st.total) * dir : a.s.name.localeCompare(b.s.name) * dir);
+  S.visible = rows.map((r) => r.s.name);
+  const allSel = rows.length && rows.every((r) => S.sel.has(r.s.name));
+  const PR = S.mcpProcs;
+  let h = `<thead><tr><th style="width:28px"><input type="checkbox" id="selall" ${allSel ? 'checked' : ''}></th><th data-sort="name">Server</th>
+    <th>Command / URL</th><th data-sort="count">${S.scope.mcp === 'all' ? 'Configs' : 'Config'}</th>${PR ? '<th>Running</th>' : ''}<th style="width:60px">On</th></tr></thead><tbody>`;
+  for (const { s, st } of rows) {
+    const sum = (st.ins.find((i) => i.summary) || {}).summary || '';
+    const where = S.scope.mcp === 'all' ? `${st.on}/${st.total}` : esc(st.ins[0].file);
+    const procs = PR ? (PR[s.name] || []) : null;
+    const orphans = procs ? procs.filter((p) => !p.owner && p.kind === 'stdio').length : 0;
+    h += `<tr data-name="${esc(s.name)}" class="${S.sel.has(s.name) ? 'sel' : ''} ${S.active === s.name ? 'active' : ''}"><td><input type="checkbox" class="rowsel" ${S.sel.has(s.name) ? 'checked' : ''}></td>
+      <td class="name">${esc(s.name)}${st.ro ? '<span class="badge">read-only</span>' : ''}${st.ins.some((i) => i.nativeOff) ? '<span class="badge warn">off in harness</span>' : ''}</td>
+      <td class="desc" title="${esc(sum)}">${esc(sum)}</td><td class="num">${where}</td>
+      ${procs ? `<td class="num">${procs.length ? `<span class="badge ok">${procs.length}</span>${orphans ? `<span class="badge warn" title="Processes whose harness has exited">${orphans} orphaned</span>` : ''}` : '<span class="badge">not running</span>'}</td>` : ''}
+      <td><button class="sw ${st.mode}" data-toggle ${st.ro ? 'disabled' : ''}></button></td></tr>`;
+  }
+  h += '</tbody>';
+  $('table').innerHTML = rows.length ? h : '<tbody><tr><td class="empty">No servers match.</td></tr></tbody>';
+  const hm = Object.fromEntries(S.data.mcp.harnesses.map((x) => [x.id, x]));
+  const sc = S.scope.mcp;
+  $('scope').innerHTML = sc === 'all' ? `Toggles apply to <b>every config</b> · ${rows.length} shown` : `Toggles apply to <b>${esc(hm[sc] ? hm[sc].label : sc)}</b> only · ${rows.length} shown`;
+  $('note').textContent = 'Disabling cuts the server entry out of the config (backed up to ' + S.data.data + '/backups first) and keeps it verbatim so Enable puts it back. Configs with comments or in YAML are read-only. "Running processes" finds each server\'s live processes and the harness that owns them; Restart ends a server so its harness starts a fresh copy (local HTTP servers are started again by this app).';
+  if (!currentHarnessLabel()) $('tbExtra').innerHTML = '';
+  const allOrphans = PR ? Object.entries(PR).flatMap(([n, ps]) => ps.filter((p) => !p.owner && p.kind === 'stdio').map((p) => ({ n, pid: p.pid }))) : [];
+  $('tbExtra').insertAdjacentHTML('beforeend', `<button id="mcpProcBtn">${PR ? 'Refresh running processes' : 'Show running processes'}</button>` +
+    (allOrphans.length ? `<button id="orphanBtn" class="danger" title="Server processes whose harness has already exited">End ${allOrphans.length} orphaned process(es)</button>` : ''));
+  $('mcpProcBtn').onclick = loadMcpProcs;
+  if ($('orphanBtn')) $('orphanBtn').onclick = () => {
+    const pids = {};
+    for (const o of allOrphans) (pids[o.n] = pids[o.n] || []).push(o.pid);
+    restartMcp(Object.keys(pids), pids, `End ${allOrphans.length} orphaned server process(es)? No harness is using them.`);
+  };
+  renderMcpDetail();
+}
+
+function renderMcpDetail() {
+  const d = $('detail');
+  const s = S.active && S.data.mcp.servers.find((x) => x.name === S.active);
+  if (!s || S.tab !== 'mcp') { d.className = 'detail'; return; }
+  let h = `<h2>${esc(s.name)}</h2><div class="actions"><button data-d="all-off">Disable everywhere</button><button data-d="all-on">Enable everywhere</button></div>`;
+  for (const i of s.installs) {
+    h += `<div class="row"><div class="h"><div>${esc(i.harness)} ${!i.editable ? '<span class="badge">read-only</span>' : ''}${i.nativeOff ? '<span class="badge warn">off in harness</span>' : ''}</div>
+      <div title="${esc(i.file)}">${esc(i.file)}${i.summary ? ' · ' + esc(i.summary) : ''}</div></div>
+      <button data-open="${esc(i.file)}" title="Open the config in the editor">✎</button>
+      <button data-reveal="${esc(i.file)}" title="Show in ${FM}">📂</button>
+      <button class="sw ${i.enabled ? 'on' : 'off'}" data-hid="${esc(i.hid)}" ${i.editable ? '' : 'disabled'}></button></div>`;
+  }
+  h += `<h3 style="margin:16px 0 4px">Running processes</h3>`;
+  if (!S.mcpProcs) h += `<p>Not checked yet. <button data-d="procs">Find running processes</button></p>`;
+  else {
+    const procs = S.mcpProcs[s.name] || [];
+    if (!procs.length) h += '<p>Not running right now. Harnesses usually start a server when they open or on first use.</p>';
+    else {
+      h += `<div class="actions"><button class="restart" data-d="mcp-restart">Restart ${procs.length > 1 ? 'all ' + procs.length + ' instances' : 'server'}</button></div>`;
+      const owners = [...new Map(procs.filter((p) => p.owner).map((p) => [p.owner.id, p.owner])).values()];
+      for (const p of procs) {
+        h += `<div class="row"><div class="h"><div>${p.owner ? esc(p.owner.label) : p.kind === 'http' ? 'Standalone' : '<span class="badge warn">orphaned</span>'} · PID ${p.pid} ${p.kind === 'http' ? `<span class="badge">HTTP :${p.port}</span>` : ''}${p.insideHarness ? '<span class="badge">inside harness</span>' : ''}</div>
+          <div title="${esc(p.cmd)}">${esc(p.cmd)}</div></div>${p.insideHarness ? '' : `<button data-prestart="${p.pid}" title="Restart this instance">↻</button>`}</div>`;
+      }
+      if (owners.length) h += `<div class="actions">${owners.map((o) => `<button class="restart" data-hrest="${esc(o.id)}">Restart ${esc(o.label)}</button>`).join('')}</div>`;
+    }
+  }
+  d.innerHTML = h; d.className = 'detail show';
+}
+
+async function loadMcpProcs() {
+  busy(true, 'Finding running MCP server processes…');
+  try { S.mcpProcs = (await api('GET', '/api/mcp/processes')).servers; } catch (e) { toast(e.message, true); }
+  busy(false);
+  render();
+}
+function restartMcp(names, pids, question) {
+  const list = names.map((n) => `<li><b>${esc(n)}</b>: ${pids && pids[n] ? pids[n].length : (S.mcpProcs && S.mcpProcs[n] ? S.mcpProcs[n].length : '?')} process(es)</li>`).join('');
+  openModal(question || `Restart ${names.length === 1 ? names[0] : names.length + ' MCP servers'}?`, `<ul>${list}</ul>
+    <p class="hint">Each server's process tree is ended. Harnesses that use it start a fresh copy on their next tool call or reconnect, picking up new env vars and settings; if one does not, the result tells you which harness to restart. Local HTTP servers are started again by this app.</p>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="doMcpRestart">Restart</button>`);
+  $('doMcpRestart').onclick = async () => {
+    closeModal();
+    busy(true, 'Restarting MCP servers…');
+    try {
+      const r = await api('POST', '/api/mcp/restart', { names, pids });
+      const owners = [...new Map(r.results.flatMap((x) => x.running ? [] : x.owners).map((o) => [o.id, o])).values()];
+      toast(r.results.map((x) => `${x.name}: ${x.note}`).join('\n') + (r.errors.length ? '\n' + r.errors.join('\n') : ''), r.errors.length > 0,
+        owners.map((o) => `<button class="restart" onclick="confirmRestart(['${esc(o.id)}'])">Restart ${esc(o.label)}</button>`).join(' '));
+    } catch (e) { toast('Restart failed: ' + e.message, true); }
+    busy(false);
+    loadMcpProcs();
+  };
+}
+
+function renderMcpSidebar() {
+  sidebar(S.data.mcp.harnesses.map((x) => ({ id: x.id, label: x.label, title: x.file, n: countHtml(x) })), 'All configs', S.data.mcp.servers.length);
+}
+
+// ---------- plugins & extensions ----------
+const PLUGIN_FILTERS = {
+  all: ['All', () => true], enabled: ['Enabled', (p) => p.enabled], disabled: ['Disabled', (p) => !p.enabled],
+  plugin: ['Plugins', (p) => p.kind === 'plugin'], extension: ['Extensions', (p) => p.kind === 'extension'],
+  notinstalled: ['Listed but not installed', (p) => !p.installed],
+};
+function renderPlugins() {
+  const q = S.search.toLowerCase();
+  const f = PLUGIN_FILTERS[S.filter] ? PLUGIN_FILTERS[S.filter][1] : () => true;
+  const sc = S.scope.plugins;
+  const rows = S.data.plugins.items.filter((p) => (sc === 'all' || p.harness === sc) && f(p) &&
+    (!q || (p.name + ' ' + p.key + ' ' + p.description + ' ' + p.market).toLowerCase().includes(q)));
+  const dir = S.sort.dir;
+  rows.sort((a, b) => S.sort.key === 'harness' ? a.harness.localeCompare(b.harness) * dir : a.name.localeCompare(b.name) * dir);
+  S.visible = rows.map((p) => p.id);
+  const allSel = rows.length && rows.every((p) => S.sel.has(p.id));
+  let h = `<thead><tr><th style="width:28px"><input type="checkbox" id="selall" ${allSel ? 'checked' : ''}></th><th data-sort="name">Name</th>
+    <th data-sort="harness">Harness</th><th>Source</th><th>Version</th><th>Description</th><th style="width:60px">On</th></tr></thead><tbody>`;
+  for (const p of rows) {
+    h += `<tr data-name="${esc(p.id)}" class="${S.sel.has(p.id) ? 'sel' : ''} ${S.active === p.id ? 'active' : ''} ${p.installed ? '' : 'dim'}"><td><input type="checkbox" class="rowsel" ${S.sel.has(p.id) ? 'checked' : ''}></td>
+      <td class="name">${esc(p.name)}<span class="badge">${p.kind}</span>${p.installed ? '' : '<span class="badge">not installed</span>'}</td>
+      <td>${esc(p.harness)}</td><td class="desc" style="max-width:180px">${esc(p.market)}</td><td class="num">${esc(p.version)}</td>
+      <td class="desc" title="${esc(p.description)}">${esc(p.description)}</td>
+      <td><button class="sw ${p.enabled ? 'on' : 'off'}" data-toggle></button></td></tr>`;
+  }
+  $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No plugins or extensions match.</td></tr></tbody>';
+  $('scope').innerHTML = `${rows.length} shown`;
+  $('note').textContent = 'Claude Code plugins switch in ~/.claude/settings.json (enabledPlugins), Codex plugins in ~/.codex/config.toml, Claude Desktop extensions in "Claude Extensions Settings", and Gemini CLI extensions are moved aside to disable them. Every file is backed up first. Install a .mcpb bundle with the button at the top or by dropping it on the window.';
+  const d = $('detail');
+  const p = S.active && S.data.plugins.items.find((x) => x.id === S.active);
+  if (!p) { d.className = 'detail'; return; }
+  d.innerHTML = `<h2>${esc(p.name)}</h2><p>${esc(p.description || 'No description')}</p>
+    <div><span class="badge">${esc(p.harness)}</span><span class="badge">${p.kind}</span>${p.version ? `<span class="badge">v${esc(p.version)}</span>` : ''}${p.market ? `<span class="badge">${esc(p.market)}</span>` : ''}</div>
+    <div class="row"><div class="h"><div>Key</div><div>${esc(p.key)}</div></div></div>
+    ${p.path ? `<div class="row"><div class="h"><div>Installed at</div><div title="${esc(p.path)}">${esc(p.path)}</div></div><button data-reveal="${esc(p.path)}">📂</button></div>` : ''}
+    <div class="row"><div class="h"><div>Switch lives in</div><div title="${esc(p.file)}">${esc(p.file)}</div></div><button data-open="${esc(p.file)}">✎</button></div>
+    ${p.mcp && p.mcp.length ? `<div class="row"><div class="h"><div>MCP servers</div><div>${esc(p.mcp.join(', '))}</div></div></div>` : ''}
+    ${p.userConfig && p.userConfig.length ? `<div class="row"><div class="h"><div>Settings</div><div>${esc(p.userConfig.join(', '))}</div></div></div>` : ''}
+    <div class="actions"><button class="sw ${p.enabled ? 'on' : 'off'}" data-ptoggle></button> ${p.enabled ? 'Enabled' : 'Disabled'}</div>`;
+  d.className = 'detail show';
+}
+function renderPluginSidebar() {
+  sidebar(S.data.plugins.harnesses.map((x) => ({ id: x.id, label: x.label, n: countHtml(x) })), 'All harnesses', S.data.plugins.items.length);
+}
+
+// ---------- config files ----------
+const KIND_LABEL = { instructions: 'Instructions (Markdown)', settings: 'Settings (JSON / YAML / TOML)', env: '.env files' };
+async function ensureFiles() {
+  if (S.files) return;
+  try { S.files = (await api('GET', '/api/files')).files; } catch (e) { S.files = []; toast(e.message, true); }
+}
+async function ensureSkillFiles(name) {
+  if (S.skillFiles[name]) return;
+  try { S.skillFiles[name] = (await api('GET', '/api/files/skill?name=' + encodeURIComponent(name))).files; } catch (e) { S.skillFiles[name] = []; toast(e.message, true); }
+}
+const FILE_FILTERS = { all: ['All kinds', () => true], instructions: ['Instructions', (f) => f.kind === 'instructions'], settings: ['Settings', (f) => f.kind === 'settings'], env: ['.env files', (f) => f.kind === 'env'], disabled: ['Disabled', (f) => f.disabled] };
+function fmtSize(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n > 1024 ? Math.round(n / 1024) + ' KB' : n + ' B'; }
+
+async function renderFiles() {
+  const sc = S.scope.files;
+  let list;
+  if (sc.startsWith('skill:')) { await ensureSkillFiles(sc.slice(6)); list = S.skillFiles[sc.slice(6)] || []; }
+  else { await ensureFiles(); list = S.files.filter((f) => sc === 'all' || (sc.startsWith('kind:') ? f.kind === sc.slice(5) : f.harness === sc)); }
+  if (S.tab !== 'files') return;
+  renderFileSidebar();
+  const q = S.search.toLowerCase();
+  const f = FILE_FILTERS[S.filter] ? FILE_FILTERS[S.filter][1] : () => true;
+  const rows = list.filter((x) => f(x) && (!q || (x.name + ' ' + x.rel + ' ' + x.harness).toLowerCase().includes(q)));
+  S.visible = [];
+  let h = `<thead><tr><th>File</th><th>Harness</th><th>Kind</th><th>Path</th><th>Size</th><th style="width:60px" title="Disabled files are renamed with a .skm-disabled suffix so the harness ignores them">On</th></tr></thead><tbody>`;
+  for (const x of rows) {
+    const canToggle = x.kind !== 'settings' || x.disabled;
+    h += `<tr data-file="${esc(x.rel)}" class="${x.disabled ? 'dim' : ''}"><td class="name">${esc(x.name)}${x.disabled ? '<span class="badge">disabled</span>' : ''}</td><td>${esc(x.harness)}</td>
+      <td>${esc(x.kind)}</td><td class="mono" title="${esc(x.rel)}">${esc(x.rel)}</td><td class="num">${fmtSize(x.size)}</td>
+      <td>${canToggle ? `<button class="sw ${x.disabled ? 'off' : 'on'}" data-ftoggle></button>` : ''}</td></tr>`;
+  }
+  $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No files match.</td></tr></tbody>';
+  $('scope').innerHTML = `${rows.length} file(s)` + (sc.startsWith('skill:') ? ` in skill <b>${esc(sc.slice(6))}</b>` : '');
+  $('tbExtra').innerHTML = `<button id="healthBtn">Check all files</button>` + (sc.startsWith('skill:') ? '' : `<button id="skillFilesBtn">Skill files…</button>`);
+  $('healthBtn').onclick = runHealth;
+  if ($('skillFilesBtn')) $('skillFilesBtn').onclick = pickSkillForFiles;
+  $('note').textContent = 'Click a file to view, check or edit it. Saving backs up the old version to ' + S.data.data + '/backups. "Diagnose with Claude Code" sends the file (with secrets redacted) to your local Claude Code and suggests fixes you can review before saving. Instruction and .env files can be switched off, which renames them so the harness ignores them.';
+  $('detail').className = 'detail';
+}
+function renderFileSidebar() {
+  const items = [{ grp: 'By kind' }];
+  const all = S.files || [];
+  for (const k of ['instructions', 'settings', 'env']) items.push({ id: 'kind:' + k, label: KIND_LABEL[k], n: all.filter((f) => f.kind === k).length });
+  items.push({ grp: 'By harness' });
+  const hs = {};
+  for (const f of all) hs[f.harness] = (hs[f.harness] || 0) + 1;
+  for (const [hname, n] of Object.entries(hs).sort()) items.push({ id: hname, label: hname, n });
+  const sc = S.scope.files;
+  if (sc.startsWith('skill:')) items.push({ grp: 'Skill' }, { id: sc, label: sc.slice(6), n: (S.skillFiles[sc.slice(6)] || []).length });
+  sidebar(items, 'All config files', all.length);
+}
+function pickSkillForFiles() {
+  const names = S.data.skills.skills.filter((s) => !s.trashed).map((s) => s.name);
+  openModal('Edit the files of a skill', `<input type="search" id="skq" placeholder="Search skills" style="width:100%"><div id="skl" style="margin-top:8px;max-height:55vh;overflow:auto"></div>`);
+  const draw = () => {
+    const q = $('skq').value.toLowerCase();
+    $('skl').innerHTML = names.filter((n) => n.toLowerCase().includes(q)).slice(0, 300).map((n) => `<div class="inst"><button data-sk="${esc(n)}">Open</button> ${esc(n)}</div>`).join('');
+  };
+  $('skq').oninput = draw; draw(); $('skq').focus();
+  $('skl').onclick = (e) => { const n = e.target.dataset.sk; if (!n) return; closeModal(); S.tab = 'files'; S.scope.files = 'skill:' + n; render(); };
+}
+
+async function runHealth() {
+  busy(true, 'Checking every config file…');
+  let r;
+  try { r = await api('GET', '/api/health'); } catch (e) { busy(false); return toast(e.message, true); }
+  busy(false);
+  const n = r.files.reduce((a, f) => a + f.issues.length, 0);
+  const body = !r.files.length ? '<p>No problems found in any config file or SKILL.md.</p>' :
+    r.files.map((f) => `<div style="margin-bottom:12px"><div><b>${esc(f.harness)}</b> <code>${esc(f.path)}</code> <button data-open="${esc(f.path)}">Open</button></div>
+      <ul class="issues">${f.issues.map((i) => `<li class="${i.level}">${esc(i.msg)}</li>`).join('')}</ul></div>`).join('');
+  openModal(`Health check: ${n} problem(s) in ${r.files.length} file(s)`, body);
+  $('mbody').onclick = (e) => { if (e.target.dataset.open) openEditor(e.target.dataset.open); };
+}
+
+// ---------- editor ----------
+async function openEditor(rel) {
+  let f;
+  busy(true);
+  try { f = await api('GET', '/api/file?path=' + encodeURIComponent(rel)); } catch (e) { busy(false); return toast(e.message, true); }
+  busy(false);
+  S.editing = f;
+  openModal(f.path, `<div class="actions" style="margin-top:0">
+      <button id="eCheck">Check</button>
+      <input type="text" id="eQ" placeholder="Optional question for Claude Code (e.g. why is my hook not firing?)" style="flex:1;min-width:240px">
+      <label title="Lets Claude Code open referenced files and paths to verify them. Takes a few minutes instead of under one."><input type="checkbox" id="eDeep"> Verify paths too (slower)</label>
+      <button id="eDiag" class="primary">Diagnose with Claude Code</button></div>
+    <ul class="issues" id="eIssues"></ul>
+    <textarea class="code" id="eText" spellcheck="false"></textarea>
+    <div id="eDiagOut"></div>`,
+    `<span class="hint" style="margin-right:auto" id="eState"></span><button data-reveal="${esc(f.path)}">Show in ${FM}</button><button onclick="closeModal()">Cancel</button><button id="eSave" class="primary">Save</button>`);
+  $('eText').value = f.text;
+  $('eText').oninput = () => { $('eState').textContent = 'Unsaved changes'; };
+  $('eText').onkeydown = (e) => { if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '  '); } if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveEditor(); } };
+  $('eCheck').onclick = checkEditor;
+  $('eDiag').onclick = diagnoseEditor;
+  $('eSave').onclick = saveEditor;
+  checkEditor();
+}
+function showIssues(issues) {
+  $('eIssues').innerHTML = issues.length ? issues.map((i) => `<li class="${i.level}">${esc(i.msg)}</li>`).join('') : '<li class="info">Built-in checks found no problems.</li>';
+}
+async function checkEditor() {
+  try { showIssues((await api('POST', '/api/file/check', { path: S.editing.path, text: $('eText').value })).issues); } catch (e) { toast(e.message, true); }
+}
+async function saveEditor() {
+  busy(true, 'Saving…');
+  try {
+    const r = await api('POST', '/api/file', { path: S.editing.path, text: $('eText').value, mtime: S.editing.mtime });
+    S.editing.mtime = r.mtime; S.editing.text = $('eText').value;
+    showIssues(r.checks);
+    $('eState').textContent = 'Saved (previous version backed up)';
+    S.files = null; S.env = null;
+    const lbl = S.editing.path.includes('/.claude') ? 'Claude Code' : S.editing.path.includes('/.codex') ? 'Codex' : S.editing.path.includes('/.gemini') ? 'Gemini CLI' : S.editing.path.includes('/Claude/') ? 'Claude Desktop' : null;
+    toast('Saved ' + S.editing.path, false, (lbl ? `<button class="restart" onclick="restartByLabel('${lbl}')">Restart ${lbl} now</button> ` : '') + `<button onclick="confirmRestartAll()">Restart all coding harnesses</button>`);
+  } catch (e) { toast('Save failed: ' + e.message, true); }
+  busy(false);
+}
+async function diagnoseEditor() {
+  const deep = $('eDeep').checked;
+  busy(true, deep ? 'Claude Code is reviewing this file and checking its paths… (a few minutes)' : 'Claude Code is reviewing this file… (under a minute)');
+  let r;
+  try { r = await api('POST', '/api/file/diagnose', { path: S.editing.path, text: $('eText').value, question: $('eQ').value, deep }); }
+  catch (e) { busy(false); return toast('Diagnose failed: ' + e.message, true); }
+  busy(false);
+  showIssues(r.issues);
+  const report = r.fixed ? r.report.replace(/```fixed[\s\S]*?```/, '[suggested corrected file below]') : r.report;
+  $('eDiagOut').innerHTML = `<h3 style="margin:14px 0 6px">Claude Code's diagnosis</h3><pre>${esc(report)}</pre>` +
+    (r.fixed ? `<h3 style="margin:14px 0 6px">Suggested corrected file</h3><pre style="max-height:30vh">${esc(r.fixed)}</pre>
+      <div class="actions"><button id="eApply" class="primary">Load the fix into the editor</button><span class="hint">You still review it and press Save.${r.redacted ? ' Secrets that were hidden from Claude are put back automatically.' : ''}</span></div>` : '');
+  if (r.fixed) $('eApply').onclick = async () => {
+    let text = r.fixed;
+    if (r.redacted) {
+      try { const m = await api('POST', '/api/file/restore-secrets', { path: S.editing.path, text: $('eText').value, fixed: r.fixed }); text = m.text; if (m.unresolved) toast(`${m.unresolved} redacted value(s) could not be matched; replace "<redacted>" by hand before saving.`, true); }
+      catch (e) { return toast(e.message, true); }
+    }
+    $('eText').value = text; $('eState').textContent = 'Fix loaded, not saved yet'; checkEditor(); $('eText').scrollIntoView();
+  };
+  $('eDiagOut').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ---------- env vars ----------
+async function renderEnv() {
+  if (!S.env) { try { S.env = await api('GET', '/api/env'); } catch (e) { S.env = { files: [], vars: [] }; toast(e.message, true); } }
+  if (S.tab !== 'env') return;
+  const sc = S.scope.env;
+  const q = S.search.toLowerCase();
+  const f = { all: () => true, on: (v) => v.enabled, off: (v) => !v.enabled }[S.filter] || (() => true);
+  const rows = S.env.vars.filter((v) => (sc === 'all' || v.source === sc) && f(v) && (!q || (v.key + ' ' + v.source + ' ' + v.harness).toLowerCase().includes(q)));
+  rows.sort((a, b) => a.key.localeCompare(b.key) * S.sort.dir);
+  const srcs = {};
+  for (const v of S.env.vars) srcs[v.source] = srcs[v.source] || { id: v.source, label: v.source.split('/').slice(-2).join('/'), title: v.source + ' · ' + v.harness, enabled: 0, disabled: 0 };
+  for (const v of S.env.vars) srcs[v.source][v.enabled ? 'enabled' : 'disabled']++;
+  for (const fl of S.env.files) if (!srcs[fl.rel]) srcs[fl.rel] = { id: fl.rel, label: fl.rel.split('/').slice(-2).join('/'), title: fl.rel, enabled: 0, disabled: 0 };
+  sidebar(Object.values(srcs).map((x) => Object.assign(x, { n: countHtml(x) })), 'All variables', S.env.vars.length);
+  S.visible = [];
+  let h = `<thead><tr><th data-sort="name">Variable</th><th>Value</th><th>Harness</th><th>Defined in</th><th></th><th style="width:60px">On</th></tr></thead><tbody>`;
+  rows.forEach((v, i) => {
+    h += `<tr data-env="${i}" class="${v.enabled ? '' : 'dim'}"><td class="name mono">${esc(v.key)}</td><td class="mono" title="Secret-looking values are masked">${esc(v.value)}</td><td>${esc(v.harness)}</td>
+      <td class="mono" title="${esc(v.source)}">${esc(v.source)}</td><td><button data-eedit>Set…</button> <button data-eopen>Open file</button></td>
+      <td><button class="sw ${v.enabled ? 'on' : 'off'}" data-etoggle></button></td></tr>`;
+  });
+  S.envRows = rows;
+  $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No variables found.</td></tr></tbody>';
+  $('scope').innerHTML = `${rows.length} variable(s)`;
+  $('tbExtra').innerHTML = sc !== 'all' ? `<button id="addVar">Add variable to ${esc(sc.split('/').pop())}</button>` : '';
+  if ($('addVar')) $('addVar').onclick = () => editVar({ source: sc, key: '', enabled: true });
+  $('note').textContent = 'Variables from every .env file the app found (home, harness folders, skills) and from the "env" block of ~/.claude/settings.json. Switching one off comments it out ("# skm-off:") or moves it to "envDisabledBySkm". Restarting a harness from this app also re-reads the system and user environment, so it sees variables you set since it started.';
+  $('detail').className = 'detail';
+}
+function editVar(v) {
+  openModal(v.key ? `Set ${v.key}` : 'Add variable', `<label class="f">Name</label><input type="text" id="vk" value="${esc(v.key)}" ${v.key ? 'readonly' : ''}>
+    <label class="f">New value</label><input type="password" id="vv" autocomplete="off"><div class="hint">In ${esc(v.source)}. The current value is not shown here; whatever you type replaces it.</div>
+    <label style="display:block;margin-top:8px"><input type="checkbox" id="vshow"> Show value</label>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="vsave">Save</button>`);
+  $('vshow').onchange = (e) => { $('vv').type = e.target.checked ? 'text' : 'password'; };
+  $('vsave').onclick = () => {
+    const key = $('vk').value.trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(key)) return toast('Not a valid variable name', true);
+    closeModal(); act('/api/env/set', { source: v.source, key, value: $('vv').value }, 'Set ' + key);
+  };
+  setTimeout(() => $(v.key ? 'vv' : 'vk').focus(), 30);
+}
+
+// ---------- harnesses ----------
+async function loadHarnesses(force) {
+  if (S.harn && !force) return S.harn;
+  busy(true, 'Looking for running harnesses…');
+  try { S.harn = await api('GET', '/api/harnesses'); } catch (e) { toast(e.message, true); S.harn = { harnesses: [] }; }
+  busy(false);
+  return S.harn;
+}
+async function renderHarnesses() {
+  await loadHarnesses();
+  if (S.tab !== 'harnesses') return;
+  $('hlist').innerHTML = `<li class="on"><span class="lbl">${esc(S.harn.os || '')}</span></li>`;
+  const q = S.search.toLowerCase();
+  const rows = S.harn.harnesses.filter((h) => !q || h.label.toLowerCase().includes(q));
+  S.visible = [];
+  let h = `<thead><tr><th>Harness</th><th>Type</th><th>Running</th><th>Installed at</th><th>Relaunch with</th><th></th></tr></thead><tbody>`;
+  for (const x of rows) {
+    h += `<tr data-hid="${esc(x.id)}"><td class="name">${esc(x.label)}</td><td>${x.kind === 'gui' ? 'App' : 'CLI'}</td>
+      <td class="num">${x.running ? `<span class="badge ok">${x.running} running</span>` : '<span class="badge">stopped</span>'}</td>
+      <td class="mono" title="${esc(x.installed || '')}">${esc(x.installed || '')}</td>
+      <td class="mono">${x.kind === 'cli' ? esc(x.command) + (x.cwd ? ' <span class="badge">in ' + esc(x.cwd) + '</span>' : '') : ''}${Object.keys(x.env || {}).length ? ` <span class="badge">+${Object.keys(x.env).length} env</span>` : ''}</td>
+      <td><button class="restart" data-hrestart ${x.running || x.canLaunch ? '' : 'disabled'}>${x.running ? 'Restart just this harness' : 'Start'}</button> <button data-hprefs>Launch settings…</button></td></tr>`;
+  }
+  $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No harnesses found.</td></tr></tbody>';
+  $('scope').innerHTML = `${rows.filter((x) => x.running).length} running of ${rows.length} found`;
+  $('tbExtra').innerHTML = `<button id="hRefresh">Refresh</button>`;
+  $('hRefresh').onclick = () => loadHarnesses(true).then(render);
+  $('note').textContent = 'Restart closes the harness (politely first, forced after a few seconds) and opens it again with a freshly built environment: the system and user variables as they are now, plus any extra variables in its Launch settings. Apps reopen from the same executable. CLIs reopen in a new terminal running the resume command, in the folder they were running in where the OS exposes it. Save your work in those windows first.';
+  $('detail').className = 'detail';
+}
+function harnessPrefs(id) {
+  const x = S.harn.harnesses.find((h) => h.id === id);
+  const envText = Object.entries(x.env || {}).map(([k, v]) => `${k}=${v}`).join('\n');
+  openModal(`Launch settings: ${x.label}`, (x.kind === 'cli' ? `<label class="f">Command to relaunch with</label><input type="text" id="pc" value="${esc(x.command)}">
+    <div class="hint">Runs in a new terminal. Resume flags keep your last conversation (e.g. <code>claude --continue</code>, <code>codex resume --last</code>).</div>
+    <label class="f">Folder to open in</label><input type="text" id="pd" value="${esc(x.cwd)}" placeholder="~ (home)">
+    <div class="hint">Used when the OS does not report the folder the CLI was running in (always the case on Windows).</div>` : '') +
+    `<label class="f">Extra environment variables (KEY=value per line)</label><textarea class="code" id="pe" style="min-height:120px">${esc(envText)}</textarea>
+    <div class="hint">Added on top of the fresh system and user environment every time this app restarts ${esc(x.label)}.</div>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="psave">Save</button>`);
+  $('psave').onclick = async () => {
+    const env = {};
+    for (const l of $('pe').value.split(/\r?\n/)) { const m = l.match(/^\s*([A-Za-z_][\w.-]*)\s*=\s*(.*)$/); if (m) env[m[1]] = m[2]; }
+    try { await api('POST', '/api/harnesses/prefs', { id, env, command: $('pc') ? $('pc').value : undefined, cwd: $('pd') ? $('pd').value : undefined }); closeModal(); await loadHarnesses(true); render(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+async function confirmRestart(ids, title) {
+  const st = await loadHarnesses(true);
+  const all = ids.includes('*');
+  const targets = st.harnesses.filter((h) => all ? h.running : ids.includes(h.id));
+  if (!targets.length) return toast(all ? 'No coding harnesses are running.' : 'That harness was not found on this machine.', true);
+  let body = `<p>${all ? 'Every running coding harness below' : 'This harness'} will be closed and reopened with fresh environment variables, skills, plugins, MCP servers and instruction files. Unsaved work in those windows may be lost.</p>`;
+  for (const h of targets) {
+    body += `<div style="margin:10px 0 2px"><b>${esc(h.label)}</b> ${h.running ? '' : '<span class="badge">not running; it will be started</span>'}</div>`;
+    for (const i of h.instances) body += `<label class="inst"><input type="checkbox" class="rpid" data-h="${esc(h.id)}" value="${i.pid}" checked> PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} <code title="${esc(i.cmd)}">${esc(i.cmd)}</code></label>`;
+  }
+  if (targets.some((h) => h.id === 'claude-code')) body += `<p class="hint">If you are using Claude Code to run or talk to this app, that session is in the list too. Untick it to keep it open.</p>`;
+  openModal(title || (all ? 'Restart all coding harnesses?' : `Restart ${targets[0].label}?`), body,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="doRestart">${all ? 'Restart all' : targets[0].running ? 'Restart' : 'Start'}</button>`);
+  $('doRestart').onclick = async () => {
+    const pids = {};
+    document.querySelectorAll('.rpid').forEach((c) => { (pids[c.dataset.h] = pids[c.dataset.h] || []); if (c.checked) pids[c.dataset.h].push(Number(c.value)); });
+    const chosen = targets.filter((h) => !h.running || (pids[h.id] || []).length).map((h) => h.id);
+    closeModal();
+    if (!chosen.length) return;
+    busy(true, 'Restarting…');
+    try {
+      const r = await api('POST', '/api/harnesses/restart', { ids: chosen, pids, startIfStopped: !all });
+      const lines = r.results.map((x) => `${x.label}: closed ${x.closed}${x.forced ? ` (${x.forced} forced)` : ''}, opened ${x.launched}` + (x.notes.length ? `\n  ${x.notes.join('\n  ')}` : ''));
+      toast((lines.join('\n') || 'Nothing to restart.') + (r.errors.length ? '\n' + r.errors.join('\n') : ''), r.errors.length > 0);
+    } catch (e) { toast('Restart failed: ' + e.message, true); }
+    busy(false);
+    setTimeout(() => loadHarnesses(true).then(() => S.tab === 'harnesses' && render()), 2500);
+  };
+}
+function confirmRestartAll() { confirmRestart(['*']); }
+async function restartByLabel(label) {
+  try { const r = await api('GET', '/api/harness-id?label=' + encodeURIComponent(label)); if (!r.id) return toast(`Don't know how to restart "${label}". Restart it yourself or use the Harnesses tab.`, true); confirmRestart([r.id]); }
+  catch (e) { toast(e.message, true); }
+}
+
+// ---------- .mcpb ----------
+function fileToB64(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
+}
+async function openMcpb(src) {
+  busy(true, 'Reading bundle…');
+  let info, targets;
+  try { [info, targets] = await Promise.all([api('POST', '/api/mcpb/inspect', src), api('GET', '/api/mcp/targets')]); }
+  catch (e) { busy(false); return toast('Could not read the bundle: ' + e.message, true); }
+  busy(false);
+  targets = targets.targets;
+  const uc = Object.entries(info.userConfig || {});
+  const field = ([k, s]) => {
+    const def = s.default == null ? '' : Array.isArray(s.default) ? s.default.join(', ') : String(s.default);
+    const input = s.type === 'boolean' ? `<label><input type="checkbox" data-uc="${esc(k)}" data-t="boolean" ${s.default ? 'checked' : ''}> ${esc(s.title || k)}</label>`
+      : `<input type="${s.sensitive ? 'password' : s.type === 'number' ? 'number' : 'text'}" data-uc="${esc(k)}" data-t="${esc(s.type)}" data-multi="${s.multiple ? 1 : ''}" value="${esc(def)}" placeholder="${esc(s.type === 'directory' ? 'a folder path' : s.type === 'file' ? 'a file path' : '')}">`;
+    return `${s.type === 'boolean' ? '<div style="margin-top:10px">' + input + '</div>' : `<label class="f">${esc(s.title || k)}${s.required ? ' *' : ''}</label>${input}`}<div class="hint">${esc(s.description || '')}${s.multiple ? ' Separate several with commas.' : ''}</div>`;
+  };
+  const tg = targets.map((t) => `<label class="inst"><input type="checkbox" class="mtgt" value="${esc(t.id)}"> <b>${esc(t.harness)}</b> <code>${esc(t.rel)}</code></label>`).join('');
+  openModal(`Install ${info.displayName}${info.version ? ' v' + info.version : ''}`, `
+    <p>${esc(info.description)}</p>
+    <div>${info.author ? `<span class="badge">by ${esc(info.author)}</span>` : ''}<span class="badge">${esc(info.serverType)} server</span><span class="badge">${info.fileCount} files, ${fmtSize(info.unpackedBytes)}</span>
+      ${info.supportsThisOs ? '' : `<span class="badge bad">not built for this OS (${esc((info.platforms || []).join(', '))})</span>`}</div>
+    ${info.tools.length ? `<p class="hint">Tools: ${esc(info.tools.join(', '))}</p>` : ''}
+    <div class="split"><div>
+      <h3>Option 1: Claude Desktop</h3><p class="hint">Hands the bundle to Claude Desktop, which shows its own install dialog and manages updates.</p>
+      <button id="mDesk">Open in Claude Desktop</button>
+      <h3 style="margin-top:18px">Option 2: Any harness</h3><p class="hint">Unpacks to ${esc(S.data.data)}/mcpb/ and adds an MCP server entry to each config you tick.</p>
+      <label class="f">Server name</label><input type="text" id="mName" value="${esc(info.serverName)}">
+      <label class="f">Add to</label><div style="max-height:220px;overflow:auto">${tg}</div>
+    </div><div>${uc.length ? '<h3>Settings</h3>' + uc.map(field).join('') : '<p class="hint">This bundle has no settings.</p>'}</div></div>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="mInstall">Install into selected harnesses</button>`);
+  $('mDesk').onclick = async () => {
+    try { await api('POST', '/api/mcpb/desktop', src); closeModal(); toast('Sent to Claude Desktop. Finish the install in its dialog.'); }
+    catch (e) { toast(e.message, true); }
+  };
+  $('mInstall').onclick = async () => {
+    const tsel = [...document.querySelectorAll('.mtgt:checked')].map((c) => c.value);
+    if (!tsel.length) return toast('Tick at least one harness config to add the server to.', true);
+    const userValues = {};
+    document.querySelectorAll('[data-uc]').forEach((el) => {
+      const t = el.dataset.t;
+      let v = t === 'boolean' ? el.checked : el.value;
+      if (t === 'number' && v !== '') v = Number(v);
+      if (el.dataset.multi && typeof v === 'string') v = v.split(',').map((x) => x.trim()).filter(Boolean);
+      userValues[el.dataset.uc] = v;
+    });
+    closeModal();
+    const ok = await act('/api/mcpb/install', Object.assign({}, src, { targets: tsel, userValues, serverName: $('mName') ? $('mName').value : info.serverName }), 'Install ' + info.displayName,
+      targets.find((t) => t.id === tsel[0]).harness);
+    if (ok) { S.tab = 'mcp'; S.search = $('search').value = ''; render(); }
+  };
+}
+async function mcpbFromFile(file) {
+  if (!/\.(mcpb|dxt)$/i.test(file.name)) return toast('That is not a .mcpb or .dxt bundle.', true);
+  openMcpb({ b64: await fileToB64(file), fileName: file.name });
+}
+
+// ---------- trash ----------
+function renderTrash() {
+  const t = S.data.skills.trash.filter((x) => !S.search || x.name.toLowerCase().includes(S.search.toLowerCase()));
+  S.visible = t.map((x) => x.name);
+  const allSel = t.length && t.every((x) => S.sel.has(x.name));
+  let h = `<thead><tr><th style="width:28px"><input type="checkbox" id="selall" ${allSel ? 'checked' : ''}></th><th>Skill</th><th>Uninstalled</th><th>Kept at</th><th></th></tr></thead><tbody>`;
+  for (const x of t) h += `<tr data-name="${esc(x.name)}" class="${S.sel.has(x.name) ? 'sel' : ''}"><td><input type="checkbox" class="rowsel" ${S.sel.has(x.name) ? 'checked' : ''}></td>
+    <td class="name">${esc(x.name)}</td><td class="num">${esc(x.at.slice(0, 16).replace('T', ' '))}</td><td class="desc">${esc(x.to || '(had no store copy)')}</td>
+    <td><button data-restore>Restore</button></td></tr>`;
+  $('table').innerHTML = t.length ? h + '</tbody>' : '<tbody><tr><td class="empty">Trash is empty.</td></tr></tbody>';
+  $('scope').textContent = `${t.length} uninstalled skill(s)`;
+  $('note').textContent = `Restore moves the skill back into ~/.agents/skills and recreates its harness links. To free the space for good, delete folders under ${S.data.data}/trash yourself.`;
+  $('hlist').innerHTML = '<li class="on"><span class="lbl">Uninstalled skills</span></li>';
+  $('detail').className = 'detail';
+}
+
+// ---------- shell ----------
+const FILTERS = { skills: SKILL_FILTERS, mcp: MCP_FILTERS, plugins: PLUGIN_FILTERS, files: FILE_FILTERS, env: { all: ['All'], on: ['Enabled'], off: ['Disabled'] } };
+const PLACEHOLDER = { skills: 'Search skills by name, description or source', mcp: 'Search servers or commands', plugins: 'Search plugins and extensions', files: 'Search files', env: 'Search variables', harnesses: 'Search harnesses', trash: 'Search uninstalled skills' };
+function render() {
+  if (!S.data) return;
+  const sk = S.data.skills, m = S.data.mcp, pl = S.data.plugins;
+  const live = sk.skills.filter((s) => !s.trashed);
+  const links = live.reduce((n, s) => n + s.installs.filter((i) => i.enabled).length, 0);
+  $('stats').innerHTML = `<span><b>${live.length}</b> skills</span><span><b>${links}</b> installs</span><span><b>${m.servers.length}</b> MCP</span><span><b>${pl.items.filter((p) => p.enabled).length}</b>/${pl.items.length} plugins</span><span title="${esc(S.data.os)}">${esc(S.data.os.split(' ')[0])}</span>`;
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === S.tab));
+  const filters = FILTERS[S.tab];
+  if (filters && !filters[S.filter]) S.filter = 'all';
+  $('filter').innerHTML = filters ? Object.entries(filters).map(([k, v]) => `<option value="${k}" ${k === S.filter ? 'selected' : ''}>${v[0]}</option>`).join('') : '';
+  $('filter').style.display = filters ? '' : 'none';
+  $('search').placeholder = PLACEHOLDER[S.tab] + '  ( / )';
+  $('tbExtra').innerHTML = '';
+  const hl = currentHarnessLabel();
+  if (hl && ['skills', 'mcp', 'plugins'].includes(S.tab)) {
+    $('tbExtra').innerHTML = `<button class="restart" id="tbRestart">Restart just ${esc(hl)}</button>`;
+    $('tbRestart').onclick = () => restartByLabel(hl);
+  }
+  if (S.tab === 'skills') { renderSkillSidebar(); renderSkills(); }
+  else if (S.tab === 'mcp') { renderMcpSidebar(); renderMcp(); }
+  else if (S.tab === 'plugins') { renderPluginSidebar(); renderPlugins(); }
+  else if (S.tab === 'files') renderFiles();
+  else if (S.tab === 'env') renderEnv();
+  else if (S.tab === 'harnesses') renderHarnesses();
+  else renderTrash();
+  renderBulk();
+}
+
+function renderBulk() {
+  const n = S.sel.size;
+  const bulkTabs = ['skills', 'mcp', 'plugins', 'trash'];
+  $('bulk').className = 'bulk' + (n && bulkTabs.includes(S.tab) ? ' show' : '');
+  const scopeName = S.tab === 'skills' ? (S.scope.skills === 'all' ? 'all harnesses' : (skillHarnessMap()[S.scope.skills] || {}).label)
+    : S.tab === 'mcp' ? (S.scope.mcp === 'all' ? 'every config' : S.scope.mcp.split('|')[0]) : '';
+  $('selcount').textContent = `${n} selected`;
+  $('bDisable').textContent = scopeName ? `Disable in ${scopeName}` : 'Disable';
+  $('bEnable').textContent = scopeName ? `Enable in ${scopeName}` : 'Enable';
+  $('bDisable').style.display = $('bEnable').style.display = S.tab === 'trash' ? 'none' : '';
+  $('bPrune').style.display = S.tab === 'skills' ? '' : 'none';
+  $('bRestore').style.display = S.tab === 'trash' ? '' : 'none';
+  $('bMcpRestart').style.display = S.tab === 'mcp' ? '' : 'none';
+}
+
+function toggleSkills(names, enabled, harnesses) {
+  const h = harnesses !== undefined ? harnesses : (S.scope.skills === 'all' ? null : [S.scope.skills]);
+  return act('/api/skills/toggle', { names, harnesses: h, enabled }, enabled ? 'Enable' : 'Disable');
+}
+function toggleMcp(names, enabled, hid) {
+  const sc = hid !== undefined ? hid : (S.scope.mcp === 'all' ? undefined : S.scope.mcp);
+  return act('/api/mcp/toggle', { targets: names.map((name) => ({ name, hid: sc })), enabled }, enabled ? 'Enable' : 'Disable', hid ? hid.split('|')[0] : undefined);
+}
+function togglePlugins(ids, enabled) {
+  const hs = [...new Set(ids.map((id) => (S.data.plugins.items.find((p) => p.id === id) || {}).harness))];
+  return act('/api/plugins/toggle', { ids, enabled }, enabled ? 'Enable' : 'Disable', hs.length === 1 ? hs[0] : undefined);
+}
+
+function closeModal() { $('modal').className = 'modal'; }
+function openModal(title, bodyHtml, footHtml) {
+  $('mtitle').textContent = title; $('mbody').innerHTML = bodyHtml; $('mfoot').innerHTML = footHtml || '';
+  $('mbody').onclick = null;
+  $('modal').className = 'modal show';
+}
+function confirmPrune(names) {
+  const list = names.slice(0, 200).map(esc).join(', ') + (names.length > 200 ? ` … and ${names.length - 200} more` : '');
+  openModal(`Uninstall ${names.length} skill(s)?`, `<p>Each selected skill will be disabled in every harness, and its folder in <code>~/.agents/skills</code> will be moved to <code>${esc(S.data.data)}/trash</code>. Its entry is taken out of <code>.skill-lock.json</code> (backed up). Nothing is deleted, and you can restore from the Trash tab.</p><p style="color:var(--muted)">${list}</p>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="doPrune">Uninstall ${names.length}</button>`);
+  $('doPrune').onclick = () => { closeModal(); S.sel.clear(); act('/api/skills/prune', { names }, 'Uninstall'); };
+}
+
+// ---------- events ----------
+document.querySelector('.tabs').onclick = (e) => {
+  const t = e.target.dataset.tab; if (!t) return;
+  S.tab = t; S.sel.clear(); S.active = null; S.filter = 'all'; S.sort = { key: 'name', dir: 1 }; render();
+};
+$('refresh').onclick = () => { S.harn = null; load(); };
+$('restartAll').onclick = confirmRestartAll;
+$('mcpbBtn').onclick = () => $('mcpbFile').click();
+$('mcpbFile').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) mcpbFromFile(f); };
+$('search').oninput = (e) => { S.search = e.target.value; render(); };
+$('filter').onchange = (e) => { S.filter = e.target.value; render(); };
+$('hsearch').oninput = () => render();
+$('hlist').onclick = (e) => {
+  const li = e.target.closest('li[data-scope]'); if (!li || !(S.tab in S.scope)) return;
+  S.scope[S.tab] = li.dataset.scope; S.sel.clear(); S.active = null; render();
+};
+$('table').onclick = (e) => {
+  const th = e.target.closest('th[data-sort]');
+  if (th) { const k = th.dataset.sort; S.sort = { key: k, dir: S.sort.key === k ? -S.sort.dir : (k === 'count' ? -1 : 1) }; return render(); }
+  if (e.target.id === 'selall') { S.visible.forEach((n) => e.target.checked ? S.sel.add(n) : S.sel.delete(n)); return render(); }
+  // config files
+  const fr = e.target.closest('tr[data-file]');
+  if (fr) {
+    if (e.target.hasAttribute('data-ftoggle')) return act('/api/file/toggle', { path: fr.dataset.file, enabled: !e.target.classList.contains('on') }, e.target.classList.contains('on') ? 'Disable file' : 'Enable file').then(() => { S.files = null; S.skillFiles = {}; render(); });
+    return openEditor(fr.dataset.file);
+  }
+  // env vars
+  const er = e.target.closest('tr[data-env]');
+  if (er) {
+    const v = S.envRows[Number(er.dataset.env)];
+    if (e.target.hasAttribute('data-etoggle')) return act('/api/env/set', { source: v.source, key: v.key, enabled: !v.enabled }, (v.enabled ? 'Disable ' : 'Enable ') + v.key, v.harness);
+    if (e.target.hasAttribute('data-eedit')) return editVar(v);
+    if (e.target.hasAttribute('data-eopen')) return openEditor(v.source);
+    return;
+  }
+  // harnesses
+  const hr = e.target.closest('tr[data-hid]');
+  if (hr) {
+    if (e.target.hasAttribute('data-hrestart')) return confirmRestart([hr.dataset.hid]);
+    if (e.target.hasAttribute('data-hprefs')) return harnessPrefs(hr.dataset.hid);
+    return;
+  }
+  const tr = e.target.closest('tr[data-name]'); if (!tr) return;
+  const name = tr.dataset.name;
+  if (e.target.classList.contains('rowsel')) { e.target.checked ? S.sel.add(name) : S.sel.delete(name); return render(); }
+  if (e.target.hasAttribute('data-restore')) return act('/api/skills/restore', { names: [name] }, 'Restore');
+  if (e.target.hasAttribute('data-toggle')) {
+    const on = e.target.classList.contains('on') || e.target.classList.contains('mixed');
+    return S.tab === 'skills' ? toggleSkills([name], !on) : S.tab === 'mcp' ? toggleMcp([name], !on) : togglePlugins([name], !on);
+  }
+  S.active = S.active === name ? null : name; render();
+};
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-reveal]');
+  if (b) api('POST', '/api/reveal', { path: b.dataset.reveal }).catch((err) => toast(err.message, true));
+});
+$('detail').onclick = async (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const name = S.active;
+  if (b.dataset.reveal) return;
+  if (b.dataset.open) return openEditor(b.dataset.open);
+  if (S.tab === 'skills') {
+    if (b.dataset.h) return toggleSkills([name], !b.classList.contains('on'), [b.dataset.h]);
+    if (b.dataset.d === 'all-off') return toggleSkills([name], false, null);
+    if (b.dataset.d === 'all-on') return toggleSkills([name], true, null);
+    if (b.dataset.d === 'prune') return confirmPrune([name]);
+    if (b.dataset.d === 'files') { S.tab = 'files'; S.scope.files = 'skill:' + name; S.active = null; S.search = $('search').value = ''; return render(); }
+    if (b.dataset.d === 'view') {
+      const r = await api('GET', '/api/skill?name=' + encodeURIComponent(name)).catch(() => ({}));
+      return openModal(name + ' / SKILL.md', `<pre>${esc(r.text || 'Could not read SKILL.md')}</pre>`);
+    }
+  } else if (S.tab === 'mcp') {
+    if (b.dataset.d === 'procs') return loadMcpProcs();
+    if (b.dataset.d === 'mcp-restart') return restartMcp([name]);
+    if (b.dataset.prestart) return restartMcp([name], { [name]: [Number(b.dataset.prestart)] });
+    if (b.dataset.hrest) return confirmRestart([b.dataset.hrest]);
+    if (b.dataset.hid) return toggleMcp([name], !b.classList.contains('on'), b.dataset.hid);
+    if (b.dataset.d === 'all-off') return toggleMcp([name], false, undefined);
+    if (b.dataset.d === 'all-on') return toggleMcp([name], true, undefined);
+  } else if (S.tab === 'plugins') {
+    if (b.hasAttribute('data-ptoggle')) return togglePlugins([name], !b.classList.contains('on'));
+  }
+};
+$('bClear').onclick = () => { S.sel.clear(); render(); };
+$('bDisable').onclick = () => { const n = [...S.sel]; S.sel.clear(); S.tab === 'skills' ? toggleSkills(n, false) : S.tab === 'mcp' ? toggleMcp(n, false) : togglePlugins(n, false); };
+$('bEnable').onclick = () => { const n = [...S.sel]; S.sel.clear(); S.tab === 'skills' ? toggleSkills(n, true) : S.tab === 'mcp' ? toggleMcp(n, true) : togglePlugins(n, true); };
+$('bPrune').onclick = () => confirmPrune([...S.sel]);
+$('bMcpRestart').onclick = () => restartMcp([...S.sel]);
+$('bRestore').onclick = () => { const n = [...S.sel]; S.sel.clear(); act('/api/skills/restore', { names: n }, 'Restore'); };
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); $('search').focus(); }
+  if (e.key === 'Escape') { if ($('modal').classList.contains('show')) closeModal(); else { S.active = null; render(); } }
+});
+$('modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
+// drag and drop a .mcpb anywhere
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => { if ([...(e.dataTransfer.items || [])].some((i) => i.kind === 'file')) { dragDepth++; $('drop').className = 'drop show'; } });
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('drop').className = 'drop'; } });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => { e.preventDefault(); dragDepth = 0; $('drop').className = 'drop'; const f = e.dataTransfer.files[0]; if (f) mcpbFromFile(f); });
+load();
+</script>
+</body>
+</html>
