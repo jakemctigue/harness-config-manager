@@ -2,7 +2,9 @@
 
 A local app for configuring every AI coding harness on your machine from one window: skills, MCP servers, plugins, extensions, `.mcpb` bundles, config files (`~/.claude.json`, `settings.json`, YAML, TOML, `CLAUDE.md`, `AGENTS.md`...), `.env` files and the flat text files inside skills. It can check those files for problems, ask Claude Code to diagnose them and suggest fixes, and restart one harness or all of them so they pick up the changes.
 
-Runs natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step).
+Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step).
+
+**Tested on:** Windows and WSL. It has **not been tested on macOS** yet.
 
 ## Start
 
@@ -66,3 +68,7 @@ In the MCP servers tab, **Show running processes** finds every live process for 
 ## Test
 
 `node test.js` round-trips every operation (skills, MCP, plugins, extensions, `.mcpb` install, file edits, env toggles, checks, redaction, process matching) in throwaway sandbox homes and never touches the real one.
+
+## License
+
+[MIT](LICENSE)
