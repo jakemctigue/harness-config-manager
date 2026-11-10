@@ -110,7 +110,10 @@ textarea.code { width: 100%; min-height: 46vh; font-size: 12.5px; line-height: 1
 .drop { position: fixed; inset: 0; border: 4px dashed var(--accent); background: rgba(59,111,224,.12); display: none; z-index: 60; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; color: var(--accent); pointer-events: none; }
 .drop.show { display: flex; }
 .inst { display: flex; gap: 8px; align-items: center; padding: 4px 0; font-size: 12px; }
-.inst code { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inst code { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.inst button { flex: none; }
+td.hact { white-space: normal; min-width: 240px; }
+td.hact button { margin: 2px 0; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 900px) { aside { width: 180px; } .detail { width: 300px; } .split { grid-template-columns: 1fr; } }
 </style>
@@ -697,14 +700,14 @@ async function renderHarnesses() {
       <td class="num">${x.running ? `<span class="badge ok">${x.running} running</span>` : '<span class="badge">stopped</span>'}</td>
       <td class="mono" title="${esc(x.installed || '')}">${esc(x.installed || '')}</td>
       <td class="mono">${x.kind === 'cli' ? esc(x.command) + (x.cwd ? ' <span class="badge">in ' + esc(x.cwd) + '</span>' : '') : ''}${Object.keys(x.env || {}).length ? ` <span class="badge">+${Object.keys(x.env).length} env</span>` : ''}</td>
-      <td><button class="restart" data-hrestart ${x.running || x.canLaunch ? '' : 'disabled'}>${x.running ? 'Restart just this harness' : 'Start'}</button> <button data-hstop ${x.running ? '' : 'disabled'} title="Close every running instance of ${esc(x.label)}; this app remembers what was open">Stop all instances</button> <button data-hstart ${x.canLaunch ? '' : 'disabled'} title="Reopens what this app stopped, or one new instance if nothing was stopped">Start all instances</button> <button data-hstartone ${x.canLaunch ? '' : 'disabled'} title="Open one new instance of ${esc(x.label)}">Start one</button> <button data-hprefs>Launch settings…</button></td></tr>`;
+      <td class="hact"><button class="restart" data-hrestart ${x.running || x.canLaunch ? '' : 'disabled'}>${x.running ? 'Restart just this harness' : 'Start'}</button> <button data-hstop ${x.running ? '' : 'disabled'} title="Close every running instance of ${esc(x.label)}; this app remembers what was open">Stop all instances</button> <button data-hstart ${x.canLaunch ? '' : 'disabled'} title="Reopens what this app stopped, or one new instance if nothing was stopped">Start all instances</button> <button data-hstartone ${x.canLaunch ? '' : 'disabled'} title="Open one new instance of ${esc(x.label)}">Start one</button> <button data-hprefs>Launch settings…</button></td></tr>`;
     // per-instance controls: running instances (Stop) and what this app stopped (Start)
     const subs = [];
-    for (const i of x.instances || []) subs.push(`<div class="inst">PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} · <code title="${esc(i.cmd)}">${esc(i.cmd)}</code> <button data-hstoppid data-pid="${i.pid}" title="Close only PID ${i.pid}; this app remembers it so Start can reopen it">Stop</button></div>`);
+    for (const i of x.instances || []) subs.push(`<div class="inst"><button class="restart" data-hstoppid data-pid="${i.pid}" title="Close only PID ${i.pid}; this app remembers it so Start can reopen it">Stop this instance</button> PID ${i.pid}${i.cwd ? ' · ' + esc(i.cwd) : ''} · <code title="${esc(i.cmd)}">${esc(i.cmd)}</code></div>`);
     const rec = x.stopped;
-    if (rec && rec.gui) subs.push(`<div class="inst"><span class="badge warn">stopped</span> the app <button data-hstartrec data-idx="0">Start</button></div>`);
-    else if (rec) (rec.cli || []).forEach((c, n) => subs.push(`<div class="inst"><span class="badge warn">stopped</span> ${esc(c.cwd)} · <code>${esc(c.command)}</code> <button data-hstartrec data-idx="${n}">Start</button></div>`));
-    if (subs.length) h += `<tr data-hid="${esc(x.id)}" class="hsub"><td colspan="6">${subs.join('')}</td></tr>`;
+    if (rec && rec.gui) subs.push(`<div class="inst"><button data-hstartrec data-idx="0">Start this instance</button> <span class="badge warn">stopped</span> the app</div>`);
+    else if (rec) (rec.cli || []).forEach((c, n) => subs.push(`<div class="inst"><button data-hstartrec data-idx="${n}">Start this instance</button> <span class="badge warn">stopped</span> ${esc(c.cwd)} · <code>${esc(c.command)}</code></div>`));
+    if (subs.length) h += `<tr data-hid="${esc(x.id)}" class="hsub"><td colspan="6" style="max-width:0;overflow:hidden">${subs.join('')}</td></tr>`;
   }
   $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No harnesses found.</td></tr></tbody>';
   $('scope').innerHTML = `${rows.filter((x) => x.running).length} running of ${rows.length} found`;
