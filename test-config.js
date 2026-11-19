@@ -211,9 +211,17 @@ assert.strictEqual(P.msixAppIdFor(WA + 'OpenAI.ChatGPT-Desktop_1.2026.190.0_x64_
   P.IS_WIN ? 'OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT' : null, 'a known app Id skips the Start menu lookup');
 const repoKey = 'HKEY_CURRENT_USER\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages';
 const pk = P.parseMsixPackages(['', `${repoKey}\\OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0`, `${repoKey}\\OpenAI.Codex_26.900.1.0_x64__2p2nqsd0c76g0`,
-  `${repoKey}\\Foo.Bar_1.0.0.0_neutral_split.scale-100_abc123`, ''].join('\r\n'));
-assert.deepStrictEqual(pk.map((p) => p.name), ['OpenAI.Codex', 'OpenAI.Codex', 'Foo.Bar']);
-assert.deepStrictEqual(pk[0], { fullName: 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0', name: 'OpenAI.Codex', version: '26.1111.2228.0', publisherId: '2p2nqsd0c76g0' });
+  `${repoKey}\\Foo.Bar_1.0.0.0_neutral_split.scale-100_abc123`,
+  // reg lists keys alphabetically, so an app's resource packages ("neutral_split...") come before its main one ("x64__")
+  `${repoKey}\\OpenAI.CodexBeta_26.727.4816.0_neutral_split.language-de_2p2nqsd0c76g0`,
+  `${repoKey}\\OpenAI.CodexBeta_26.727.4816.0_neutral_split.scale-125_2p2nqsd0c76g0`,
+  `${repoKey}\\OpenAI.CodexBeta_26.727.4816.0_x64__2p2nqsd0c76g0`, ''].join('\r\n'));
+assert.deepStrictEqual(pk.map((p) => p.name), ['OpenAI.Codex', 'OpenAI.Codex', 'Foo.Bar', 'OpenAI.CodexBeta', 'OpenAI.CodexBeta', 'OpenAI.CodexBeta']);
+assert.deepStrictEqual(pk[0], { fullName: 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0', name: 'OpenAI.Codex', version: '26.1111.2228.0', resourceId: '', publisherId: '2p2nqsd0c76g0' });
+assert.strictEqual(pk[2].resourceId, 'split.scale-100');
+assert.deepStrictEqual(P.msixCandidates(pk, 'openai.codexbeta').map((p) => p.fullName), ['OpenAI.CodexBeta_26.727.4816.0_x64__2p2nqsd0c76g0'], 'resource splits are never the app');
+assert.deepStrictEqual(P.msixCandidates(pk, 'OpenAI.Codex').map((p) => p.version), ['26.1111.2228.0', '26.900.1.0'], 'newest first');
+assert.deepStrictEqual(P.msixCandidates(pk, 'Foo.Bar'), [], 'a name with only resource packages has no app');
 assert(P.compareVersions('26.1111.2228.0', '26.900.1.0') > 0, 'versions compare numerically, not as text');
 assert.deepStrictEqual(harness.idsForLabel('Codex / ChatGPT app'), ['codex', 'chatgpt', 'chatgpt-beta'], '~/.codex changes may need the CLI or the apps restarted');
 assert.deepStrictEqual(harness.idsForLabel('Claude Desktop'), ['claude-desktop']);
