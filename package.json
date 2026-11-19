@@ -1,0 +1,64 @@
+{
+  "name": "harness-config-manager",
+  "productName": "Harness Config Manager",
+  "version": "1.0.2",
+  "description": "One local window for the skills, MCP servers, plugins, config files and env vars of every AI coding harness.",
+  "license": "MIT",
+  "author": "Jake McTigue",
+  "private": true,
+  "main": "desktop/main.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "desktop": "electron .",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^45.3.4",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.jakemctigue.harness-config-manager",
+    "productName": "Harness Config Manager",
+    "electronLanguages": [
+      "en-US"
+    ],
+    "compression": "maximum",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "!desktop/installer.nsh",
+      "lib/**/*",
+      "public/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "desktop/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "include": "desktop/installer.nsh",
+      "artifactName": "Harness-Config-Manager-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "desktop/icon.png",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "desktop/icon.png",
+      "category": "Development"
+    }
+  }
+}

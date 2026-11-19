@@ -176,7 +176,13 @@ const S = { data: null, tab: 'skills', scope: { skills: 'all', mcp: 'all', plugi
   sel: new Set(), active: null, sort: { key: 'name', dir: 1 }, files: null, skillFiles: {}, env: null, harn: null };
 const FM = navigator.platform.startsWith('Mac') ? 'Finder' : navigator.platform.startsWith('Win') ? 'Explorer' : 'file manager';
 
+// window.skm exists only in the desktop app (desktop/preload.js); the browser version uses HTTP.
 async function api(method, url, body) {
+  if (window.skm) {
+    const d = await window.skm.api(method, url, body);
+    if (d.error) throw new Error(d.error);
+    return JSON.parse(d.json);
+  }
   const r = await fetch(url, { method, headers: { 'x-skm-token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
@@ -608,7 +614,7 @@ async function saveEditor() {
     showIssues(r.checks);
     $('eState').textContent = 'Saved (previous version backed up)';
     S.files = null; S.env = null;
-    const lbl = S.editing.path.includes('/.claude') ? 'Claude Code' : S.editing.path.includes('/.codex') ? 'Codex' : S.editing.path.includes('/.gemini') ? 'Gemini CLI' : S.editing.path.includes('/Claude/') ? 'Claude Desktop' : null;
+    const lbl = S.editing.path.includes('/.claude') ? 'Claude Code' : S.editing.path.includes('/.codex') ? 'Codex / ChatGPT app' : S.editing.path.includes('/.gemini') ? 'Gemini CLI' : S.editing.path.includes('/Claude/') ? 'Claude Desktop' : null;
     toast('Saved ' + S.editing.path, false, (lbl ? `<button class="restart" onclick="restartByLabel('${lbl}')">Restart ${lbl} now</button> ` : '') + `<button onclick="confirmRestartAll()">Restart all coding harnesses</button>`);
   } catch (e) { toast('Save failed: ' + e.message, true); }
   busy(false);
@@ -696,7 +702,7 @@ async function renderHarnesses() {
   S.visible = [];
   let h = `<thead><tr><th>Harness</th><th>Type</th><th>Running</th><th>Installed at</th><th>Relaunch with</th><th></th></tr></thead><tbody>`;
   for (const x of rows) {
-    h += `<tr data-hid="${esc(x.id)}"><td class="name">${esc(x.label)}${x.stoppedCount ? ` <span class="badge warn" title="Start all instances reopens these">${x.stoppedCount} stopped by this app</span>` : ''}</td><td>${x.kind === 'gui' ? 'App' : 'CLI'}</td>
+    h += `<tr data-hid="${esc(x.id)}"><td class="name">${esc(x.label)}${x.store ? ` <span class="badge" title="Microsoft Store app ${esc(x.store.family)}, version ${esc(x.store.version)}">Store</span>` : ''}${x.stoppedCount ? ` <span class="badge warn" title="Start all instances reopens these">${x.stoppedCount} stopped by this app</span>` : ''}</td><td>${x.kind === 'gui' ? 'App' : 'CLI'}</td>
       <td class="num">${x.running ? `<span class="badge ok">${x.running} running</span>` : '<span class="badge">stopped</span>'}</td>
       <td class="mono" title="${esc(x.installed || '')}">${esc(x.installed || '')}</td>
       <td class="mono">${x.kind === 'cli' ? esc(x.command) + (x.cwd ? ' <span class="badge">in ' + esc(x.cwd) + '</span>' : '') : ''}${Object.keys(x.env || {}).length ? ` <span class="badge">+${Object.keys(x.env).length} env</span>` : ''}</td>
@@ -806,8 +812,18 @@ function confirmStartOne(id, index) {
 }
 function confirmStart(ids) { confirmRestart(ids, null, 'start'); }
 async function restartByLabel(label) {
-  try { const r = await api('GET', '/api/harness-id?label=' + encodeURIComponent(label)); if (!r.id) return toast(`Don't know how to restart "${label}". Restart it yourself or use the Harnesses tab.`, true); confirmRestart([r.id]); }
-  catch (e) { toast(e.message, true); }
+  try {
+    const r = await api('GET', '/api/harness-id?label=' + encodeURIComponent(label));
+    if (!r.id) return toast(`Don't know how to restart "${label}". Restart it yourself or use the Harnesses tab.`, true);
+    // a shared config (~/.codex) can belong to several harnesses: offer the ones that are running
+    let ids = r.ids && r.ids.length ? r.ids : [r.id];
+    if (ids.length > 1) {
+      const st = await loadHarnesses(true);
+      const running = ids.filter((id) => (st.harnesses.find((h) => h.id === id) || {}).running);
+      ids = running.length ? running : [r.id];
+    }
+    confirmRestart(ids);
+  } catch (e) { toast(e.message, true); }
 }
 
 // ---------- .mcpb ----------
@@ -865,8 +881,10 @@ async function openMcpb(src) {
 }
 async function mcpbFromFile(file) {
   if (!/\.(mcpb|dxt)$/i.test(file.name)) return toast('That is not a .mcpb or .dxt bundle.', true);
-  openMcpb({ b64: await fileToB64(file), fileName: file.name });
+  const localPath = window.skm ? window.skm.pathForFile(file) : '';
+  openMcpb(localPath ? { localPath, fileName: file.name } : { b64: await fileToB64(file), fileName: file.name });
 }
+if (window.skm) window.skm.onOpenFile((p) => openMcpb({ localPath: p, fileName: p.split(/[\\/]/).pop() }));
 
 // ---------- trash ----------
 function renderTrash() {

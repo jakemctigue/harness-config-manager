@@ -2,7 +2,7 @@
 
 A local app for configuring every AI coding harness on your machine from one window: skills, MCP servers, plugins, extensions, `.mcpb` bundles, config files (`~/.claude.json`, `settings.json`, YAML, TOML, `CLAUDE.md`, `AGENTS.md`...), `.env` files and the flat text files inside skills. It can check those files for problems, ask Claude Code to diagnose them and suggest fixes, and restart one harness or all of them so they pick up the changes.
 
-Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step).
+Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step). On Windows there is also a desktop app with an installer that needs no Node.js (see [Desktop app](#desktop-app)).
 
 **Tested on:** Windows and WSL. It has **not been tested on macOS** yet.
 
@@ -17,14 +17,35 @@ Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 1
 
 It opens a chromeless app window (Edge, Chrome, Brave or Chromium; otherwise your default browser). Closing the console window, or Ctrl+C, stops it. `node server.js some-bundle.mcpb` (or `start.cmd some-bundle.mcpb`) starts straight into the installer for that bundle, so you can point a file association at it.
 
+## Desktop app
+
+The desktop app is the same window and the same features in a native Windows app: its own icon, taskbar entry and Start menu shortcut, no console window, and nothing listening on a local port.
+
+**Install:** run `Harness-Config-Manager-Setup-<version>.exe`. It installs for your user only and needs no admin rights or Node.js. Uninstall it from Windows Settings > Apps.
+
+**Open a bundle:** drop a `.mcpb` / `.dxt` on the window, use **Install .mcpb…**, or right-click a bundle in Explorer and choose **Open with > Harness Config Manager**. The installer adds the app to the **Open with** list but leaves your default app for `.mcpb` alone, because **Open in Claude Desktop** hands the bundle to that default app. If the app is already open, the bundle opens in the running window.
+
+**Build it from a checkout** (needs Node.js 18+):
+
+```
+npm install          # Electron and electron-builder, used only to run and package the app
+npm run desktop      # run the desktop app from the checkout
+npm run dist         # build dist/Harness-Config-Manager-Setup-<version>.exe
+npm run dist:dir     # build only dist/win-unpacked (no installer), for a quick test
+```
+
+The installer is not code-signed, so the first time you run it Windows SmartScreen may say it "protected your PC". Click **More info > Run anyway**. The `mac` and `linux` targets in `package.json` have not been built or tested yet.
+
+How it fits together: `lib/routes.js` holds every action the UI can ask for. `server.js` serves those actions over local HTTP for the browser version, and `desktop/main.js` serves the same actions to the window over Electron IPC. `desktop/preload.js` is the only bridge between the page and the app, and the page runs sandboxed without Node.js access.
+
 ## Tabs
 
 | Tab | What it covers | How a toggle works |
 |---|---|---|
 | **Skills** | `~/.agents/skills` plus every `~/.<harness>/skills` folder (about 80 harnesses). Search, filter, select many, then **Disable**, **Enable** or **Uninstall (to Trash)**. **Edit skill files…** opens every text file in a skill. | Disable removes that harness's link (or moves a real folder to `~/.skill-manager/disabled`). Uninstall moves the store copy to `~/.skill-manager/trash`; the Trash tab restores it. |
-| **MCP servers** | About 50 config locations (Claude Code incl. project scopes in `~/.claude.json`, Claude Desktop, Codex TOML, Cursor, Windsurf, Gemini, VS Code, Cline, Roo, Zed, opencode, Goose...). | The entry is cut out of the config (backed up first) and kept verbatim, and Enable writes it back. |
-| **Plugins & extensions** | Claude Code plugins, Codex plugins, Gemini CLI extensions, Claude Desktop extensions. | `enabledPlugins` in `~/.claude/settings.json`; `[plugins."x"] enabled` in `~/.codex/config.toml`; `isEnabled` in Claude Desktop's extension settings; Gemini extension folders are moved aside. |
-| **Config files** | Every settings, instruction and `.env` file the harnesses read, grouped by kind and by harness. Click a file to edit it. | Instruction and `.env` files can be switched off, which renames them with a `.skm-disabled` suffix so the harness ignores them. |
+| **MCP servers** | About 50 config locations (Claude Code incl. project scopes in `~/.claude.json`, Claude Desktop, Codex / ChatGPT app TOML, Cursor, Windsurf, Gemini, VS Code, Cline, Roo, Zed, opencode, Goose...), Microsoft Store apps' own copies (see below), and the servers that enabled Codex plugins bring. | The entry is cut out of the config (backed up first) and kept verbatim, and Enable writes it back. Plugin servers are read-only: switch the plugin off instead. |
+| **Plugins & extensions** | Claude Code plugins, Codex / ChatGPT app plugins (with the version, description, skills and MCP server each brings, from `~/.codex/plugins/cache`), Gemini CLI extensions, Claude Desktop extensions. | `enabledPlugins` in `~/.claude/settings.json`; `[plugins."x"]` or `[plugins.'x']` `enabled` in `~/.codex/config.toml`; `isEnabled` in Claude Desktop's extension settings; Gemini extension folders are moved aside. |
+| **Config files** | Every settings, instruction and `.env` file the harnesses read, grouped by kind and by harness, including files in Microsoft Store apps' private folders. Click a file to edit it. | Instruction and `.env` files can be switched off, which renames them with a `.skm-disabled` suffix so the harness ignores them. |
 | **Env vars** | Every variable in every `.env` file found (home, harness folders, skills) and in the `env` block of `~/.claude/settings.json`. Values that look secret are masked. | Off comments the line out (`# skm-off:`) or moves the key to `envDisabledBySkm`. **Set…** replaces a value without showing the old one. |
 | **Harnesses** | Every harness found on this machine, whether it is running, and its launch settings. | **Restart just this harness** / **Start**. |
 | **Trash** | Uninstalled skills. | Restore puts the folder, lock entry and links back. |
@@ -48,7 +69,12 @@ The editor runs built-in checks as you work, and **Check all files** in the Conf
 
 - The relaunched harness gets a **fresh environment**: the system and user variables as they are now (read from the registry on Windows and from a login shell on macOS and Linux), plus any extra variables you add in its **Launch settings**. That is what makes new env vars, skills, plugins, MCP servers and instruction files take effect.
 - **Apps** (Claude Desktop, ChatGPT / Codex app, ChatGPT / Codex app (Beta), ChatGPT Classic, Codex app on macOS, Cursor, VS Code, Windsurf, Kiro, Antigravity, Trae, Zed, LM Studio) are asked to close, forced after a few seconds, and reopened from the same executable. Store apps on Windows reopen through their app ID, and they are listed even when they are not running.
-- On Windows the Codex desktop app is the Store app named **ChatGPT** (package `OpenAI.Codex`), so it appears as **ChatGPT / Codex app**. The older chat-only app is **ChatGPT Classic**. Helper processes inside the app (its `codex.exe` app server, MCP servers it starts) count toward the app, not as separate harnesses.
+- On Windows the Codex desktop app is the Store app named **ChatGPT** (package `OpenAI.Codex`), so it appears as **ChatGPT / Codex app**. The older chat-only app is **ChatGPT Classic**. Helper processes inside the app (its `codex.exe` app server, MCP servers it starts) count toward the app, not as separate harnesses. Store apps carry a **Store** badge with their package and version.
+- `~/.codex` (config, skills, plugins) is shared by the Codex CLI and the ChatGPT / Codex apps, so the other tabs label it **Codex / ChatGPT app**, and **Restart now** after a change there offers whichever of them are running.
+
+### Microsoft Store apps' private folders
+
+When a Store app (or anything it launches) creates a new file under AppData, Windows writes it to `%LOCALAPPDATA%\Packages\<app>\LocalCache\Roaming` or `\Local` instead, and only that app sees it there. For each installed Store harness the app also looks in that folder: ChatGPT Classic's `config.json`, the ChatGPT / Codex app's own plugins (`executor-plugins`), Claude Desktop's `Claude-3p` config, and the Store app's copy of any AppData MCP config it knows (shown as, for example, **Claude Desktop (Store)**).
 - **CLIs** (Claude Code, Codex, Gemini CLI, Copilot CLI, opencode, Qwen, Amp, Droid, Crush, Goose) reopen in a new terminal window (Windows Terminal or cmd; Terminal.app; your Linux terminal) running a resume command such as `claude --continue` or `codex resume --last`, in the folder they were running in. Windows does not report a CLI's folder, so set one in **Launch settings** (it defaults to your home folder). Background modes (IDE agents over ACP, daemons, MCP servers, `claude -p` runs) are left alone.
 
 **Stop and start.** The top bar also has **Stop all harnesses** and **Start all harnesses**, and each row on the Harnesses tab has **Stop all instances** and **Start all instances**. Stopping lists the exact processes (untick any, including your Claude Code session), closes them the same graceful-then-forced way as a restart, and remembers what was open: one entry per app, or one per CLI instance with its folder and command (the row shows "N stopped by this app"). Starting reopens exactly that, using the same fresh environment as a restart; with nothing remembered, a row's **Start all instances** opens one instance, while **Start all harnesses** does nothing and says so (it never launches harnesses that this app did not stop). An app that is already running is skipped, and the remembered entry is cleared once its harness has started.
@@ -65,14 +91,15 @@ In the MCP servers tab, **Show running processes** finds every live process for 
 
 ## Safety
 
-- The server listens on 127.0.0.1 only and every API call needs a per-launch token.
+- The server listens on 127.0.0.1 only and every API call needs a per-launch token. The desktop app opens no port at all: the window talks to the app over Electron IPC, and the app accepts those calls only from its own page.
+- Harnesses that the desktop app starts or restarts get a fresh environment without the variables Electron sets for itself.
 - Every file is backed up to `~/.skill-manager/backups/<time>/` before it changes, edits are refused if the file changed on disk since you opened it, and only files under your home folder can be read or written.
 - Nothing is hard-deleted. To reclaim space, delete folders under `~/.skill-manager/trash` yourself.
 - Configs with comments (JSONC) and YAML MCP configs are shown read-only for toggling, but you can still edit them in the editor.
 
 ## Test
 
-`node test.js` round-trips every operation (skills, MCP, plugins, extensions, `.mcpb` install, file edits, env toggles, checks, redaction, process matching) in throwaway sandbox homes and never touches the real one.
+`node test.js` (or `npm test`) round-trips every operation (skills, MCP, plugins, extensions, `.mcpb` install, file edits, env toggles, checks, redaction, process matching, the shared routes) in throwaway sandbox homes and never touches the real one. It needs only Node.js, not `npm install`.
 
 ## License
 

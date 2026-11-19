@@ -19,7 +19,9 @@ Files are backed up before they change, and nothing is hard-deleted. The app onl
 
 ## Get started
 
-You need [Node.js](https://nodejs.org) 18 or newer. There's nothing else to install.
+**Windows desktop app:** build the installer with `npm install` and then `npm run dist`, then run `dist/Harness-Config-Manager-Setup-<version>.exe`. It installs for your user without admin rights, and the installed app doesn't need Node.js. See [Desktop app](docs/GUIDE.md#desktop-app).
+
+**Browser version (any OS):** you need [Node.js](https://nodejs.org) 18 or newer. There's nothing else to install.
 
 | OS | Start it with |
 |---|---|
