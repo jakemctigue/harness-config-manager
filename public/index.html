@@ -176,7 +176,13 @@ const S = { data: null, tab: 'skills', scope: { skills: 'all', mcp: 'all', plugi
   sel: new Set(), active: null, sort: { key: 'name', dir: 1 }, files: null, skillFiles: {}, env: null, harn: null };
 const FM = navigator.platform.startsWith('Mac') ? 'Finder' : navigator.platform.startsWith('Win') ? 'Explorer' : 'file manager';
 
+// window.skm exists only in the desktop app (desktop/preload.js); the browser version uses HTTP.
 async function api(method, url, body) {
+  if (window.skm) {
+    const d = await window.skm.api(method, url, body);
+    if (d.error) throw new Error(d.error);
+    return JSON.parse(d.json);
+  }
   const r = await fetch(url, { method, headers: { 'x-skm-token': TOKEN, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
@@ -865,8 +871,10 @@ async function openMcpb(src) {
 }
 async function mcpbFromFile(file) {
   if (!/\.(mcpb|dxt)$/i.test(file.name)) return toast('That is not a .mcpb or .dxt bundle.', true);
-  openMcpb({ b64: await fileToB64(file), fileName: file.name });
+  const localPath = window.skm ? window.skm.pathForFile(file) : '';
+  openMcpb(localPath ? { localPath, fileName: file.name } : { b64: await fileToB64(file), fileName: file.name });
 }
+if (window.skm) window.skm.onOpenFile((p) => openMcpb({ localPath: p, fileName: p.split(/[\\/]/).pop() }));
 
 // ---------- trash ----------
 function renderTrash() {

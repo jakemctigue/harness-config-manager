@@ -179,6 +179,9 @@ assert(fs.readFileSync(launcher, 'utf8').includes(P.IS_WIN ? 'set "A=b c"' : "ex
 const fe = P.freshEnv();
 assert(fe.PATH || fe.Path, 'fresh env has PATH');
 assert(!Object.keys(fe).some((k) => k.startsWith('SKM_')), 'fresh env drops SKM_ vars');
+const shellEnv = { PATH: 'p', ELECTRON_RUN_AS_NODE: '1', electron_no_asar: '1', CHROME_CRASHPAD_PIPE_NAME: 'x', CHROME_PATH: 'c' };
+assert.deepStrictEqual(P.baseEnv(shellEnv, true), { PATH: 'p', CHROME_PATH: 'c' }, 'desktop app drops Electron/Chromium vars');
+assert.deepStrictEqual(P.baseEnv(shellEnv, false), shellEnv, 'browser mode keeps the environment as is');
 
 // ---------- MCP server processes ----------
 const mcpproc = require('./lib/mcpproc');
@@ -187,6 +190,23 @@ assert.deepStrictEqual(mcpproc.keysFor('node C:\\srv\\index.js --api-key sk-abc'
 assert.strictEqual(mcpproc.localPort('http://127.0.0.1:4937/mcp'), 4937);
 assert.strictEqual(mcpproc.localPort('https://example.com/mcp'), null);
 (async () => {
+  // ---------- routes: what the browser (HTTP) and desktop (IPC) front ends both call ----------
+  const R = require('./lib/routes');
+  assert(R.has('GET', '/api/scan') && R.has('POST', '/api/mcpb/inspect'));
+  assert(!R.has('GET', '/api/nope') && !R.has('GET', '__proto__') && !R.has('POST', '/api/scan'));
+  await assert.rejects(R.dispatch('GET', '/api/nope'), (e) => e.status === 404);
+  assert.strictEqual((await R.dispatch('GET', '/api/harness-id?label=' + encodeURIComponent('Claude Code'), null)).id, 'claude-code', 'query string reaches the handler');
+  const bundleFile = path.join(HOME, 'Downloads', 'demo.mcpb');
+  w(path.relative(HOME, bundleFile), bundle);
+  assert.strictEqual((await R.dispatch('POST', '/api/mcpb/inspect', { localPath: bundleFile })).serverName, 'demo-server', 'a dropped file path is read');
+  assert.strictEqual((await R.dispatch('POST', '/api/mcpb/inspect', { b64: bundle.toString('base64') })).serverName, 'demo-server');
+  await assert.rejects(R.dispatch('POST', '/api/mcpb/inspect', { localPath: path.join(HOME, '.claude.json') }), /not a \.mcpb/);
+  R.setOpenFile('notes.txt');
+  assert.strictEqual((await R.dispatch('GET', '/api/scan')).openFile, null, 'only bundles are opened on launch');
+  R.setOpenFile(bundleFile);
+  assert.strictEqual((await R.dispatch('GET', '/api/scan')).openFile, bundleFile);
+  R.setOpenFile(null);
+
   const script = path.join(HOME, 'fake-mcp-' + Date.now(), 'server.js');
   w(path.relative(HOME, script), 'setInterval(() => {}, 1000);');
   w('.cursor/mcp.json', JSON.stringify({ mcpServers: { fakesrv: { command: 'node', args: [script] } } }));

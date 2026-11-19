@@ -2,3 +2,4 @@ node_modules/
 *.skm-tmp-*
 .DS_Store
 Thumbs.db
+dist/

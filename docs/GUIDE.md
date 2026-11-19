@@ -2,7 +2,7 @@
 
 A local app for configuring every AI coding harness on your machine from one window: skills, MCP servers, plugins, extensions, `.mcpb` bundles, config files (`~/.claude.json`, `settings.json`, YAML, TOML, `CLAUDE.md`, `AGENTS.md`...), `.env` files and the flat text files inside skills. It can check those files for problems, ask Claude Code to diagnose them and suggest fixes, and restart one harness or all of them so they pick up the changes.
 
-Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step).
+Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 18+ (no dependencies, no install step). On Windows there is also a desktop app with an installer that needs no Node.js (see [Desktop app](#desktop-app)).
 
 **Tested on:** Windows and WSL. It has **not been tested on macOS** yet.
 
@@ -16,6 +16,27 @@ Built to run natively on **Windows, macOS and Linux** with nothing but Node.js 1
 | Any | `node server.js` |
 
 It opens a chromeless app window (Edge, Chrome, Brave or Chromium; otherwise your default browser). Closing the console window, or Ctrl+C, stops it. `node server.js some-bundle.mcpb` (or `start.cmd some-bundle.mcpb`) starts straight into the installer for that bundle, so you can point a file association at it.
+
+## Desktop app
+
+The desktop app is the same window and the same features in a native Windows app: its own icon, taskbar entry and Start menu shortcut, no console window, and nothing listening on a local port.
+
+**Install:** run `Harness-Config-Manager-Setup-<version>.exe`. It installs for your user only and needs no admin rights or Node.js. Uninstall it from Windows Settings > Apps.
+
+**Open a bundle:** drop a `.mcpb` / `.dxt` on the window, use **Install .mcpb…**, or right-click a bundle in Explorer and choose **Open with > Harness Config Manager**. The installer adds the app to the **Open with** list but leaves your default app for `.mcpb` alone, because **Open in Claude Desktop** hands the bundle to that default app. If the app is already open, the bundle opens in the running window.
+
+**Build it from a checkout** (needs Node.js 18+):
+
+```
+npm install          # Electron and electron-builder, used only to run and package the app
+npm run desktop      # run the desktop app from the checkout
+npm run dist         # build dist/Harness-Config-Manager-Setup-<version>.exe
+npm run dist:dir     # build only dist/win-unpacked (no installer), for a quick test
+```
+
+The installer is not code-signed, so the first time you run it Windows SmartScreen may say it "protected your PC". Click **More info > Run anyway**. The `mac` and `linux` targets in `package.json` have not been built or tested yet.
+
+How it fits together: `lib/routes.js` holds every action the UI can ask for. `server.js` serves those actions over local HTTP for the browser version, and `desktop/main.js` serves the same actions to the window over Electron IPC. `desktop/preload.js` is the only bridge between the page and the app, and the page runs sandboxed without Node.js access.
 
 ## Tabs
 
@@ -64,14 +85,15 @@ In the MCP servers tab, **Show running processes** finds every live process for 
 
 ## Safety
 
-- The server listens on 127.0.0.1 only and every API call needs a per-launch token.
+- The server listens on 127.0.0.1 only and every API call needs a per-launch token. The desktop app opens no port at all: the window talks to the app over Electron IPC, and the app accepts those calls only from its own page.
+- Harnesses that the desktop app starts or restarts get a fresh environment without the variables Electron sets for itself.
 - Every file is backed up to `~/.skill-manager/backups/<time>/` before it changes, edits are refused if the file changed on disk since you opened it, and only files under your home folder can be read or written.
 - Nothing is hard-deleted. To reclaim space, delete folders under `~/.skill-manager/trash` yourself.
 - Configs with comments (JSONC) and YAML MCP configs are shown read-only for toggling, but you can still edit them in the editor.
 
 ## Test
 
-`node test.js` round-trips every operation (skills, MCP, plugins, extensions, `.mcpb` install, file edits, env toggles, checks, redaction, process matching) in throwaway sandbox homes and never touches the real one.
+`node test.js` (or `npm test`) round-trips every operation (skills, MCP, plugins, extensions, `.mcpb` install, file edits, env toggles, checks, redaction, process matching, the shared routes) in throwaway sandbox homes and never touches the real one. It needs only Node.js, not `npm install`.
 
 ## License
 
