@@ -45,6 +45,35 @@ assert.strictEqual(r.changed, 4, r.errors.join());
 assert.strictEqual(readJ('.claude/settings.json').enabledPlugins['p1@m'], true);
 assert.strictEqual(readJ('.claude/settings.json').env.FOO, 'bar', 'other settings kept');
 
+// ---------- Codex plugins as the ChatGPT / Codex app writes them ('literal' keys, files in the plugin cache) ----------
+const CX = 'Codex / ChatGPT app';
+fs.appendFileSync(path.join(HOME, '.codex/config.toml'), "\n[plugins.'browser@openai-bundled']\nenabled = true\n\n[plugins.'tools@openai-bundled']\nenabled = true\n\n[plugins.'quiet@openai-bundled']\nenabled = false\n");
+const pcache = '.codex/plugins/cache/openai-bundled';
+w(`${pcache}/browser/1.2.0/.codex-plugin/plugin.json`, JSON.stringify({ name: 'browser', version: '1.2.0', description: 'Old browser plugin' }));
+w(`${pcache}/browser/1.10.0/.codex-plugin/plugin.json`, JSON.stringify({ name: 'browser', version: '1.10.0', description: 'Browser plugin\n\nAliases: @browser' }));
+w(`${pcache}/browser/1.10.0/skills/use-browser/SKILL.md`, '---\nname: use-browser\n---\n');
+w(`${pcache}/tools/2.0.0/.codex-plugin/plugin.json`, JSON.stringify({ name: 'tools', version: '2.0.0', mcpServers: './.mcp.json' }));
+w(`${pcache}/tools/2.0.0/.mcp.json`, JSON.stringify({ mcpServers: { app_tools: { command: 'node', args: ['server.mjs'] } } }));
+w(`${pcache}/quiet/1.0.0/.codex-plugin/plugin.json`, JSON.stringify({ name: 'quiet', version: '1.0.0', mcpServers: './.mcp.json' }));
+w(`${pcache}/quiet/1.0.0/.mcp.json`, JSON.stringify({ mcpServers: { quiet_srv: { command: 'node' } } }));
+pl = plugins.scan();
+const br = pid('codex:browser@openai-bundled');
+assert(br && br.enabled && br.harness === CX && br.market === 'openai-bundled', JSON.stringify(br));
+assert.strictEqual(br.version, '1.10.0', 'newest cached version, compared as numbers');
+assert.strictEqual(br.description, 'Browser plugin Brings 1 skill.');
+assert(pid('codex:quiet@openai-bundled') && !pid('codex:quiet@openai-bundled').enabled, 'literal keys are read');
+assert(pl.harnesses.some((h) => h.label === CX && h.enabled >= 3));
+r = plugins.setEnabled({ ids: ['codex:browser@openai-bundled'], enabled: false });
+assert.strictEqual(r.changed, 1, r.errors.join());
+assert(fs.readFileSync(path.join(HOME, '.codex/config.toml'), 'utf8').includes("[plugins.'browser@openai-bundled']\nenabled = false"), 'the literal key is kept');
+assert.strictEqual(plugins.setEnabled({ ids: ['codex:browser@openai-bundled'], enabled: true }).changed, 1);
+// MCP servers that enabled plugins bring: listed read-only; a disabled plugin's are not listed
+const plugCfg = mcp.configs().filter((c) => / \(plugin /.test(c.harness));
+assert.deepStrictEqual(plugCfg.map((c) => [c.harness, c.editable, c.entries.map((e) => e.name)]), [[`${CX} (plugin tools)`, false, ['app_tools']]]);
+assert(!mcp.installTargets().some((t) => / \(plugin /.test(t.harness)), 'plugin configs are not install targets');
+r = mcp.setEnabled({ targets: [{ name: 'app_tools' }], enabled: false });
+assert(r.changed === 0 && /switch the plugin off in the Plugins tab/.test(r.errors.join()), JSON.stringify(r));
+
 // ---------- .mcpb ----------
 function makeZip(entries) { // minimal deflate zip writer, test only
   const parts = [], central = [];
@@ -74,7 +103,7 @@ assert.strictEqual(info.serverName, 'demo-server');
 assert.strictEqual(info.fileCount, 2);
 assert.throws(() => mcpb.install({ buf: bundle, targets: [], userValues: {} }), /Token/);
 const tgts = mcp.installTargets();
-const codexT = tgts.find((t) => t.harness === 'Codex');
+const codexT = tgts.find((t) => t.harness === 'Codex / ChatGPT app');
 const claudeT = tgts.find((t) => t.harness === 'Claude Code' && t.rel === '~/.claude.json');
 assert(codexT && claudeT, 'install targets');
 r = mcpb.install({ buf: bundle, targets: [claudeT.id, codexT.id], userValues: { token: 'abc' } });
@@ -186,6 +215,35 @@ const pk = P.parseMsixPackages(['', `${repoKey}\\OpenAI.Codex_26.1111.2228.0_x64
 assert.deepStrictEqual(pk.map((p) => p.name), ['OpenAI.Codex', 'OpenAI.Codex', 'Foo.Bar']);
 assert.deepStrictEqual(pk[0], { fullName: 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0', name: 'OpenAI.Codex', version: '26.1111.2228.0', publisherId: '2p2nqsd0c76g0' });
 assert(P.compareVersions('26.1111.2228.0', '26.900.1.0') > 0, 'versions compare numerically, not as text');
+assert.deepStrictEqual(harness.idsForLabel('Codex / ChatGPT app'), ['codex', 'chatgpt', 'chatgpt-beta'], '~/.codex changes may need the CLI or the apps restarted');
+assert.deepStrictEqual(harness.idsForLabel('Claude Desktop'), ['claude-desktop']);
+assert.deepStrictEqual(harness.idsForLabel('Nothing known'), []);
+if (P.IS_WIN) { // Store apps' private data folders: their own files, and their copies of AppData files
+  const origPkg = P.msixPackage;
+  const fams = { 'OpenAI.ChatGPT-Desktop': 'OpenAI.ChatGPT-Desktop_abc', Claude: 'Claude_xyz', 'OpenAI.Codex': 'OpenAI.Codex_abc' };
+  P.msixPackage = (name) => (fams[name] ? { fullName: fams[name], family: fams[name], version: '1.2.3.0', root: path.join(HOME, 'WA', fams[name]) } : null);
+  const lc = (fam) => path.relative(HOME, path.join(P.localAppData(), 'Packages', fam, 'LocalCache'));
+  w(`${lc('OpenAI.ChatGPT-Desktop_abc')}/Roaming/ChatGPT/config.json`, '{"Settings":"x"}');
+  w(`${lc('OpenAI.Codex_abc')}/Roaming/Codex/web/Codex/executor-plugins/app-tools/.mcp.json`, JSON.stringify({ mcpServers: { codex_app: { command: 'cmd.exe' } } }));
+  w(`${lc('Claude_xyz')}/Roaming/Claude/claude_desktop_config.json`, JSON.stringify({ mcpServers: { storeonly: { command: 'npx' } } }));
+  w(`${lc('Claude_xyz')}/Roaming/Claude-3p/claude_desktop_config.json`, JSON.stringify({ mcpServers: { thirdp: { command: 'npx' } } }));
+  w('WA/OpenAI.ChatGPT-Desktop_abc/app/ChatGPT Classic.exe', '');
+  try {
+    assert.deepStrictEqual(harness.storeApps().map((a) => a.id), ['claude-desktop', 'chatgpt', 'chatgpt-classic']);
+    const fl = files.discover();
+    const fileRow = (re) => fl.find((f) => re.test(f.rel)) || {};
+    assert.strictEqual(fileRow(/Roaming\/ChatGPT\/config\.json$/).harness, 'ChatGPT Classic');
+    assert.strictEqual(fileRow(/executor-plugins\/app-tools\/\.mcp\.json$/).harness, 'ChatGPT / Codex app');
+    assert.strictEqual(fileRow(/Claude_xyz\/LocalCache\/Roaming\/Claude\/claude_desktop_config\.json$/).harness, 'Claude Desktop');
+    const cfg = mcp.configs();
+    const srcOf = (name) => (cfg.find((c) => c.entries.some((e) => e.name === name)) || {}).harness;
+    assert.strictEqual(srcOf('storeonly'), 'Claude Desktop (Store)', "the Store app's own copy of an AppData config");
+    assert.strictEqual(srcOf('thirdp'), 'Claude Desktop (3P)');
+    assert.strictEqual(srcOf('codex_app'), undefined, 'the app manages its executor plugins; shown as a file only');
+    const classic = harness.status().harnesses.find((x) => x.id === 'chatgpt-classic');
+    assert.deepStrictEqual(classic && classic.store, { family: 'OpenAI.ChatGPT-Desktop_abc', version: '1.2.3.0' });
+  } finally { P.msixPackage = origPkg; }
+}
 if (P.IS_WIN) { // a Store app that is installed but not running still shows up, ready to Start
   const origPkg = P.msixPackage;
   const root = path.join(HOME, 'WindowsApps', 'OpenAI.ChatGPT-Desktop_1.0.0.0_x64__abc');
@@ -226,6 +284,7 @@ assert.strictEqual(mcpproc.localPort('https://example.com/mcp'), null);
   assert(!R.has('GET', '/api/nope') && !R.has('GET', '__proto__') && !R.has('POST', '/api/scan'));
   await assert.rejects(R.dispatch('GET', '/api/nope'), (e) => e.status === 404);
   assert.strictEqual((await R.dispatch('GET', '/api/harness-id?label=' + encodeURIComponent('Claude Code'), null)).id, 'claude-code', 'query string reaches the handler');
+  assert.deepStrictEqual((await R.dispatch('GET', '/api/harness-id?label=' + encodeURIComponent('Codex / ChatGPT app'))).ids, ['codex', 'chatgpt', 'chatgpt-beta']);
   const bundleFile = path.join(HOME, 'Downloads', 'demo.mcpb');
   w(path.relative(HOME, bundleFile), bundle);
   assert.strictEqual((await R.dispatch('POST', '/api/mcpb/inspect', { localPath: bundleFile })).serverName, 'demo-server', 'a dropped file path is read');
