@@ -166,6 +166,36 @@ assert(reg('claude-code').match(fake('/usr/bin/node', 'node /usr/lib/node_module
 assert(reg('gemini').match(fake('/usr/bin/node', 'node /usr/lib/node_modules/@google/gemini-cli/dist/index.js')));
 assert(reg('cursor').match(fake('/Applications/Cursor.app/Contents/MacOS/Cursor')));
 assert(reg('chatgpt').match(fake('/Applications/ChatGPT.app/Contents/MacOS/ChatGPT')));
+// OpenAI's Windows Store apps: each package is its own harness, and app/resources helpers are not apps
+const WA = 'C:\\Program Files\\WindowsApps\\';
+const owners = (exe) => harness.REGISTRY.filter((h) => h.match(fake(exe))).map((h) => h.id);
+assert.deepStrictEqual(owners(WA + 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe'), ['chatgpt']);
+assert.deepStrictEqual(owners(WA + 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0\\app\\Codex.exe'), ['chatgpt']);
+assert.deepStrictEqual(owners(WA + 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0\\app\\resources\\codex.exe'), [], 'the app-server helper is not a harness');
+assert.deepStrictEqual(owners(WA + 'OpenAI.CodexBeta_26.727.4816.0_x64__2p2nqsd0c76g0\\app\\ChatGPT (Beta).exe'), ['chatgpt-beta']);
+assert.deepStrictEqual(owners(WA + 'OpenAI.ChatGPT-Desktop_1.2026.190.0_x64__2p2nqsd0c76g0\\app\\ChatGPT Classic.exe'), ['chatgpt-classic']);
+assert.deepStrictEqual(owners(WA + 'OpenAI.ChatGPT-Desktop_1.2025.1.0_x64__2p2nqsd0c76g0\\app\\ChatGPT.exe'), ['chatgpt-classic'], 'older Classic builds named the exe ChatGPT.exe');
+assert.deepStrictEqual(owners('C:\\Users\\x\\.codex\\packages\\standalone\\releases\\0.167.0\\bin\\codex.exe'), ['codex']);
+assert.strictEqual(harness.idForLabel('ChatGPT Classic'), 'chatgpt-classic');
+assert.strictEqual(harness.idForLabel('ChatGPT (Beta)'), 'chatgpt-beta');
+assert.strictEqual(P.msixAppIdFor(WA + 'OpenAI.ChatGPT-Desktop_1.2026.190.0_x64__2p2nqsd0c76g0\\app\\ChatGPT Classic.exe', 'ChatGPT'),
+  P.IS_WIN ? 'OpenAI.ChatGPT-Desktop_2p2nqsd0c76g0!ChatGPT' : null, 'a known app Id skips the Start menu lookup');
+const repoKey = 'HKEY_CURRENT_USER\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages';
+const pk = P.parseMsixPackages(['', `${repoKey}\\OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0`, `${repoKey}\\OpenAI.Codex_26.900.1.0_x64__2p2nqsd0c76g0`,
+  `${repoKey}\\Foo.Bar_1.0.0.0_neutral_split.scale-100_abc123`, ''].join('\r\n'));
+assert.deepStrictEqual(pk.map((p) => p.name), ['OpenAI.Codex', 'OpenAI.Codex', 'Foo.Bar']);
+assert.deepStrictEqual(pk[0], { fullName: 'OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0', name: 'OpenAI.Codex', version: '26.1111.2228.0', publisherId: '2p2nqsd0c76g0' });
+assert(P.compareVersions('26.1111.2228.0', '26.900.1.0') > 0, 'versions compare numerically, not as text');
+if (P.IS_WIN) { // a Store app that is installed but not running still shows up, ready to Start
+  const origPkg = P.msixPackage;
+  const root = path.join(HOME, 'WindowsApps', 'OpenAI.ChatGPT-Desktop_1.0.0.0_x64__abc');
+  w(path.relative(HOME, path.join(root, 'app', 'ChatGPT Classic.exe')), '');
+  P.msixPackage = (name) => (name === 'OpenAI.ChatGPT-Desktop' ? { fullName: path.basename(root), family: 'OpenAI.ChatGPT-Desktop_abc', root } : null);
+  try {
+    const cls = harness.status().harnesses.find((x) => x.id === 'chatgpt-classic');
+    assert(cls && cls.canLaunch && /ChatGPT Classic\.exe$/.test(cls.installed), JSON.stringify(cls));
+  } finally { P.msixPackage = origPkg; }
+}
 const snap = { procs: [
   Object.assign(fake('/home/u/.local/bin/claude', '/home/u/.local/bin/claude'), { pid: 10, ppid: 1, rawExe: '', rawCmd: '' }),
   Object.assign(fake('/home/u/.local/bin/claude', '/home/u/.local/bin/claude daemon run'), { pid: 11, ppid: 1, rawExe: '', rawCmd: '' }),
