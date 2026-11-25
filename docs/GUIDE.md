@@ -42,13 +42,31 @@ How it fits together: `lib/routes.js` holds every action the UI can ask for. `se
 
 | Tab | What it covers | How a toggle works |
 |---|---|---|
-| **Skills** | `~/.agents/skills` plus every `~/.<harness>/skills` folder (about 80 harnesses). Search, filter, select many, then **Disable**, **Enable** or **Uninstall (to Trash)**. **Edit skill files…** opens every text file in a skill. | Disable removes that harness's link (or moves a real folder to `~/.skill-manager/disabled`). Uninstall moves the store copy to `~/.skill-manager/trash`; the Trash tab restores it. |
+| **Skills** | `~/.agents/skills` plus every `~/.<harness>/skills` folder (about 80 harnesses), plus the skills that enabled Codex / ChatGPT app and Claude Code plugins bring and Codex's built-in ones (`~/.codex/skills/.system`). Search, filter, select many, then **Disable**, **Enable** or **Uninstall (to Trash)**. **Edit skill files…** opens every text file in a skill. | Disable removes that harness's link (or moves a real folder to `~/.skill-manager/disabled`). Uninstall moves the store copy to `~/.skill-manager/trash`; the Trash tab restores it. Plugin and built-in skills are read-only: switch their plugin off in Plugins & extensions. |
 | **MCP servers** | About 50 config locations (Claude Code incl. project scopes in `~/.claude.json`, Claude Desktop, Codex / ChatGPT app TOML, Cursor, Windsurf, Gemini, VS Code, Cline, Roo, Zed, opencode, Goose...), Microsoft Store apps' own copies (see below), and the servers that enabled Codex plugins bring. | The entry is cut out of the config (backed up first) and kept verbatim, and Enable writes it back. Plugin servers are read-only: switch the plugin off instead. |
 | **Plugins & extensions** | Claude Code plugins, Codex / ChatGPT app plugins (with the version, description, skills and MCP server each brings, from `~/.codex/plugins/cache`), Gemini CLI extensions, Claude Desktop extensions. | `enabledPlugins` in `~/.claude/settings.json`; `[plugins."x"]` or `[plugins.'x']` `enabled` in `~/.codex/config.toml`; `isEnabled` in Claude Desktop's extension settings; Gemini extension folders are moved aside. |
 | **Config files** | Every settings, instruction and `.env` file the harnesses read, grouped by kind and by harness, including files in Microsoft Store apps' private folders. Click a file to edit it. | Instruction and `.env` files can be switched off, which renames them with a `.skm-disabled` suffix so the harness ignores them. |
 | **Env vars** | Every variable in every `.env` file found (home, harness folders, skills) and in the `env` block of `~/.claude/settings.json`. Values that look secret are masked. | Off comments the line out (`# skm-off:`) or moves the key to `envDisabledBySkm`. **Set…** replaces a value without showing the old one. |
 | **Harnesses** | Every harness found on this machine, whether it is running, and its launch settings. | **Restart just this harness** / **Start**. |
+| **Backups** | Backups of the whole harness configuration, kept in `~/.skill-manager/snapshots`. | **Back up now…**, **Restore…**, **Restore from a file…**, **Copy to folder…** (see below). |
 | **Trash** | Uninstalled skills. | Restore puts the folder, lock entry and links back. |
+
+## Backup and restore
+
+**Back up now…** saves one `.hcmbackup` file holding the parts you tick:
+
+- **Skills:** the shared store `~/.agents/skills`, its lock file, and every harness skills folder. Links are saved as links and recreated on restore. `.git`, `node_modules`, `.venv` and `__pycache__` folders are left out, because they can be rebuilt.
+- **MCP server configs:** every MCP config file the app knows.
+- **Plugin and extension switches:** Claude Code and Codex plugin settings, Gemini extension enablement, Claude Desktop extension settings.
+- **Settings and instruction files:** everything in the Config files tab except `.env` files.
+- **.env files:** off by default, because they hold secrets.
+- **This app's records:** disabled items, the Trash list and launch settings.
+
+A password (at least 8 characters) encrypts the whole backup with AES-256-GCM. Use one whenever you include `.env` files, and bear in mind that MCP configs and settings files can hold API keys too. There is no way to recover a forgotten password. Never commit a backup to a repository.
+
+**Restore…** first compares the backup with this machine and lists every item as changed, missing here or the same. Changed and missing items are ticked; you can untick any. Items that already match are left alone. Everything a restore overwrites or replaces is moved to `~/.skill-manager/trash/<time>-replaced-by-restore/` first, so a restore can be undone. Paths are saved relative to your home folder and app-data folder, so a backup also restores on another machine or OS user. Restart the harnesses afterwards so they load the restored configuration.
+
+You can also drop a `.hcmbackup` file on the window. The browser version uploads backups up to 60 MB; for bigger ones, copy the file into `~/.skill-manager/snapshots` or use the desktop app. **Copy to folder…** copies a backup somewhere else, such as a USB drive.
 
 ## .mcpb bundles
 
