@@ -122,6 +122,44 @@ backup.copyTo({ name: made.name, folder: outDir });
 assert(fs.existsSync(path.join(outDir, made.name)));
 assert.throws(() => backup.copyTo({ name: made.name, folder: outDir }), /already exists/);
 
+// ---------- Windows user environment variables (fake registry; the real one is never touched) ----------
+{
+  const reg = { OPENROUTER_API_KEY: { value: 'sk-or-real', expand: false }, Path: { value: '%USERPROFILE%\\bin', expand: true } };
+  const writes = [];
+  let broadcasts = 0;
+  const saved = Object.assign({}, backup.userEnv);
+  backup.userEnv.read = () => JSON.parse(JSON.stringify(reg));
+  backup.userEnv.write = (name, v) => { writes.push([name, v]); reg[name] = v; };
+  backup.userEnv.broadcast = () => { broadcasts++; };
+  assert(!backup.collect(backup.DEFAULT_CATS).some((i) => i.type === 'regvar'), 'user env vars are opt-in');
+  const eb = backup.create({ cats: ['userenv'], password: 'correct horse' });
+  assert.strictEqual(backup.list().backups.find((b) => b.name === eb.name).includesEnv, true);
+  const ebRaw = fs.readFileSync(path.join(HOME, '.skill-manager', 'snapshots', eb.name));
+  assert(!ebRaw.includes(Buffer.from('sk-or-real')), 'env var values are encrypted');
+  reg.OPENROUTER_API_KEY = { value: 'sk-or-changed', expand: false };
+  delete reg.Path;
+  reg.NEW_ONE = { value: 'keep me', expand: false };
+  const ei = backup.inspect({ name: eb.name, password: 'correct horse' });
+  const es = (n) => (ei.items.find((i) => i.rel === '$USERENV/' + n) || {}).status;
+  if (P.IS_WIN) {
+    assert.strictEqual(es('OPENROUTER_API_KEY'), 'changed');
+    assert.strictEqual(es('Path'), 'new');
+    const er = backup.restore({ name: eb.name, password: 'correct horse' });
+    assert.deepStrictEqual(er.errors, []);
+    assert.strictEqual(er.changed, 2);
+    assert(er.envChanged && broadcasts === 1);
+    assert.deepStrictEqual(reg.OPENROUTER_API_KEY, { value: 'sk-or-real', expand: false });
+    assert.deepStrictEqual(reg.Path, { value: '%USERPROFILE%\\bin', expand: true }, 'REG_EXPAND_SZ kept');
+    assert.strictEqual(reg.NEW_ONE.value, 'keep me', 'variables not in the backup are left alone');
+    const prev = JSON.parse(fs.readFileSync(path.join(HOME, er.replacedTo.replace(/^~\//, ''), 'user-environment-before-restore.json'), 'utf8'));
+    assert.deepStrictEqual(prev, { OPENROUTER_API_KEY: { value: 'sk-or-changed', expand: false }, Path: null }, 'old values kept for undo');
+    assert(backup.inspect({ name: eb.name, password: 'correct horse' }).items.every((i) => i.status === 'same'));
+  } else {
+    assert.strictEqual(es('OPENROUTER_API_KEY'), 'invalid');
+  }
+  Object.assign(backup.userEnv, saved);
+}
+
 // ---------- skills that come with plugins ----------
 w('.codex/skills/.system/imagegen/SKILL.md', '---\nname: imagegen\ndescription: Built in\n---\n');
 w('.codex/plugins/cache/mk/cp/1.0.0/.codex-plugin/plugin.json', JSON.stringify({ name: 'cp', version: '1.0.0' }));

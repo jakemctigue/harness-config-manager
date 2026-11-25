@@ -892,7 +892,8 @@ async function mcpbFromFile(file) {
 if (window.skm) window.skm.onOpenFile((p) => openMcpb({ localPath: p, fileName: p.split(/[\\/]/).pop() }));
 
 // ---------- backups ----------
-const BK_CATS = ['skills', 'mcp', 'plugins', 'config', 'env', 'state'];
+const BK_CATS = ['skills', 'mcp', 'plugins', 'config', 'env', 'userenv', 'state'];
+const bkCats = () => BK_CATS.filter((c) => c !== 'userenv' || (S.data && S.data.platform === 'win32'));
 async function renderBackups() {
   if (!S.backups) { try { S.backups = await api('GET', '/api/backups'); } catch (e) { S.backups = { backups: [], folder: '' }; toast(e.message, true); } }
   if (S.tab !== 'backups') return;
@@ -926,24 +927,24 @@ async function openBackupCreate() {
     const b = est.byCat[c] || { items: 0, bytes: 0 };
     return `<label class="inst"><input type="checkbox" class="bkc" value="${c}" ${est.defaults.includes(c) ? 'checked' : ''}> <b>${esc(est.categories[c])}</b> <span class="hint">${b.items} item(s), ${fmtSize(b.bytes)}</span></label>`;
   };
-  openModal('Back up harness configuration', `<p>Choose what to include.</p>${BK_CATS.map(row).join('')}
-    <p class="hint" id="bkEnvWarn" style="display:none;color:var(--warn)">.env files hold API keys and other secrets. Set a password below so the backup is encrypted, and don't commit or share the file.</p>
+  openModal('Back up harness configuration', `<p>Choose what to include.</p>${bkCats().map(row).join('')}
+    <p class="hint" id="bkEnvWarn" style="display:none;color:var(--warn)">.env files and environment variables hold API keys and other secrets (for example OPENROUTER_API_KEY). Set a password below so the backup is encrypted, and don't commit or share the file.</p>
     <p class="hint">MCP configs and settings files can also contain API keys (for example a key passed as a server argument). A password encrypts the whole backup with AES-256.</p>
     <label class="f">Name (optional)</label><input type="text" id="bkLabel" placeholder="e.g. before-cleanup">
     <label class="f">Password (optional, at least 8 characters)</label><input type="password" id="bkPw" autocomplete="new-password">
     <label class="f">Repeat password</label><input type="password" id="bkPw2" autocomplete="new-password">
     <p class="hint">There is no way to recover a forgotten password.</p>`,
     `<button onclick="closeModal()">Cancel</button><button class="primary" id="bkGo">Back up</button>`);
-  const envBox = document.querySelector('.bkc[value="env"]');
-  const syncWarn = () => { $('bkEnvWarn').style.display = envBox.checked ? '' : 'none'; };
-  envBox.onchange = syncWarn; syncWarn();
+  const secretBoxes = [...document.querySelectorAll('.bkc[value="env"], .bkc[value="userenv"]')];
+  const syncWarn = () => { $('bkEnvWarn').style.display = secretBoxes.some((b) => b.checked) ? '' : 'none'; };
+  secretBoxes.forEach((b) => { b.onchange = syncWarn; }); syncWarn();
   $('bkGo').onclick = async () => {
     const cats = [...document.querySelectorAll('.bkc:checked')].map((c) => c.value);
     const pw = $('bkPw').value;
     if (!cats.length) return toast('Pick at least one thing to back up.', true);
     if (pw !== $('bkPw2').value) return toast('The passwords do not match.', true);
     if (pw && pw.length < 8) return toast('Use a password of at least 8 characters.', true);
-    if (cats.includes('env') && !pw && !confirm('This backup will hold your .env secrets without a password. Continue?')) return;
+    if ((cats.includes('env') || cats.includes('userenv')) && !pw && !confirm('This backup will hold your secrets (.env files or environment variables) without a password. Continue?')) return;
     closeModal();
     busy(true, 'Backing up…');
     try {
@@ -989,7 +990,7 @@ async function openRestore(src, title, password) {
       <span class="hint">${s.changed || 0} changed, ${s.new || 0} missing here, ${s.same || 0} same</span></summary>`;
     for (const i of its) {
       const badge = i.status === 'same' ? '<span class="badge">same</span>' : i.status === 'new' ? '<span class="badge ok">missing here</span>' : i.status === 'changed' ? '<span class="badge warn">changed</span>' : '<span class="badge bad">not valid here</span>';
-      body += `<label class="inst"><input type="checkbox" class="rsi" data-c="${c}" value="${esc(i.id)}" ${i.status === 'new' || i.status === 'changed' ? 'checked' : ''} ${i.status === 'same' || i.status === 'invalid' ? 'disabled' : ''}> ${badge} <code title="${esc(i.rel)}">${esc(i.rel)}${i.type === 'link' ? ' → ' + esc(i.target) : i.type === 'dir' ? ` (${i.files} files)` : ''}</code></label>`;
+      body += `<label class="inst"><input type="checkbox" class="rsi" data-c="${c}" value="${esc(i.id)}" ${i.status === 'new' || i.status === 'changed' ? 'checked' : ''} ${i.status === 'same' || i.status === 'invalid' ? 'disabled' : ''}> ${badge} <code title="${esc(i.rel)}">${esc(i.type === 'regvar' ? i.rel.replace(/^\$USERENV\//, '') : i.rel)}${i.type === 'link' ? ' → ' + esc(i.target) : i.type === 'dir' ? ` (${i.files} files)` : ''}</code></label>`;
     }
     body += '</details>';
   }
@@ -1005,6 +1006,7 @@ async function openRestore(src, title, password) {
     try {
       const r = await api('POST', '/api/backup/restore', Object.assign({}, src, { password, ids }));
       toast(`Restored ${r.changed} item(s)` + (r.skipped ? `, ${r.skipped} already matched` : '') + (r.replacedTo ? `.\nWhat it replaced is in ${r.replacedTo}` : '.') +
+        (r.envChanged ? '\nNew terminals and harnesses restarted from this app see the restored environment variables.' : '') +
         (r.errors.length ? `\n${r.errors.length} problem(s):\n` + r.errors.slice(0, 6).join('\n') : ''), r.errors.length > 0,
         `<button class="restart" onclick="confirmRestartAll()">Restart all coding harnesses</button>`);
     } catch (e) { toast('Restore failed: ' + e.message, true); }

@@ -60,9 +60,10 @@ How it fits together: `lib/routes.js` holds every action the UI can ask for. `se
 - **Plugin and extension switches:** Claude Code and Codex plugin settings, Gemini extension enablement, Claude Desktop extension settings.
 - **Settings and instruction files:** everything in the Config files tab except `.env` files.
 - **.env files:** off by default, because they hold secrets.
+- **Windows user environment variables** (`HKCU\Environment`, for example `OPENROUTER_API_KEY` or `Path`): Windows only, off by default for the same reason. Each variable is listed on its own when you restore. A restore keeps each value's type (`REG_SZ` or `REG_EXPAND_SZ`), leaves variables that aren't in the backup alone, saves the values it replaces to `user-environment-before-restore.json` in the Trash folder, and tells Windows the environment changed. New terminals, and harnesses restarted from this app, then see the restored values.
 - **This app's records:** disabled items, the Trash list and launch settings.
 
-A password (at least 8 characters) encrypts the whole backup with AES-256-GCM. Use one whenever you include `.env` files, and bear in mind that MCP configs and settings files can hold API keys too. There is no way to recover a forgotten password. Never commit a backup to a repository.
+A password (at least 8 characters) encrypts the whole backup with AES-256-GCM. Use one whenever you include `.env` files or environment variables, and bear in mind that MCP configs and settings files can hold API keys too. There is no way to recover a forgotten password. Never commit a backup to a repository.
 
 **Restore…** first compares the backup with this machine and lists every item as changed, missing here or the same. Changed and missing items are ticked; you can untick any. Items that already match are left alone. Everything a restore overwrites or replaces is moved to `~/.skill-manager/trash/<time>-replaced-by-restore/` first, so a restore can be undone. Paths are saved relative to your home folder and app-data folder, so a backup also restores on another machine or OS user. Restart the harnesses afterwards so they load the restored configuration.
 

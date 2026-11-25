@@ -23,7 +23,7 @@ Harness Config Manager puts all of it in one local window. You can see everythin
 - **Config files:** edit `.claude.json`, `settings.json`, YAML, TOML, `CLAUDE.md`, `AGENTS.md` and the text files inside skills.
 - **Env vars:** every `.env` variable in one list, with secret-looking values masked.
 - **Harnesses:** which harnesses are installed and running, with Stop, Start and Restart for each one and each instance.
-- **Backup and restore:** save skills, MCP configs, plugin switches, settings and (if you choose) `.env` files to one file, optionally password-encrypted, and restore all or part of it later or on another machine.
+- **Backup and restore:** save skills, MCP configs, plugin switches, settings and (if you choose) `.env` files and Windows user environment variables to one file, optionally password-encrypted, and restore all or part of it later or on another machine.
 - **Microsoft Store apps on Windows:** ChatGPT (the Codex app), ChatGPT (Beta), ChatGPT Classic and Claude Desktop are found even when they're closed, including the files Windows keeps in their private folders.
 
 ## Install
