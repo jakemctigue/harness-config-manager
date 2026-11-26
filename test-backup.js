@@ -178,5 +178,35 @@ w('.codex/config.toml', 'model = "x"\n\n[plugins."cp@mk"]\nenabled = false\n');
 sc = skills.scan();
 assert(!sc.skills.some((s) => s.name === 'plug-skill' && s.installs.some((i) => i.kind === 'plugin')));
 
+// ---------- Claude Desktop skills: account skills, its plugins, extensions ----------
+{
+  const cd = path.relative(HOME, path.join(P.appData(), 'Claude'));
+  w(`${cd}/local-agent-mode-sessions/skills-plugin/acct/org/skills/docx/SKILL.md`, '---\nname: docx\ndescription: Word files\n---\n');
+  w(`${cd}/rpm/org/acct/manifest.json`, JSON.stringify({ plugins: [{ id: 'plugin_1', name: 'eng', displayName: 'Engineering' }] }));
+  w(`${cd}/rpm/org/acct/plugin_1/.claude-plugin/plugin.json`, JSON.stringify({ name: 'engineering', version: '1.2.0' }));
+  w(`${cd}/rpm/org/acct/plugin_1/skills/code-review/SKILL.md`, '---\nname: code-review\ndescription: Review\n---\n');
+  w(`${cd}/Claude Extensions/ext.win/manifest.json`, JSON.stringify({ name: 'win', display_name: 'Windows-MCP', server: { type: 'node' } }));
+  w(`${cd}/Claude Extensions/ext.win/skills/windows-mcp/SKILL.md`, '---\nname: windows-mcp\ndescription: Desktop\n---\n');
+  const s2 = skills.scan();
+  const cdH = s2.harnesses.find((h) => h.id === 'claude-desktop');
+  assert(cdH && cdH.label === 'Claude Desktop' && cdH.enabled === 3, JSON.stringify(cdH));
+  const inst = (n) => s2.skills.find((s) => s.name === n).installs.find((i) => i.harness === 'claude-desktop');
+  assert.strictEqual(inst('docx').plugin, 'your Claude account');
+  assert.strictEqual(inst('code-review').plugin, 'engineering');
+  assert.strictEqual(inst('windows-mcp').plugin, 'Windows-MCP');
+  assert(inst('docx').readOnly);
+  const pl = require('./lib/plugins');
+  const cdp = pl.scan().items.find((i) => i.id === 'cd:plugin_1');
+  assert(cdp && cdp.name === 'engineering' && cdp.readOnly && cdp.harness === 'Claude Desktop' && cdp.version === '1.2.0');
+  assert(/managed in Claude Desktop/.test(pl.setEnabled({ ids: ['cd:plugin_1'], enabled: false }).errors.join()));
+  // a store skill packaged for upload: the skill folder is the ZIP's root
+  const ex = skills.exportZip({ name: 'alpha' });
+  const z = require('./lib/mcpb').readZip(fs.readFileSync(path.join(HOME, ex.file.replace(/^~\//, ''))));
+  const names = z.entries.map((e) => e.name).sort();
+  assert(names.includes('alpha/SKILL.md') && names.includes('alpha/scripts/run.sh'), names.join());
+  assert(!names.some((n) => n.includes('node_modules')));
+  assert.throws(() => skills.exportZip({ name: 'nope' }), /not found/);
+}
+
 fs.rmSync(HOME, { recursive: true, force: true });
 console.log('all backup sandbox tests passed');

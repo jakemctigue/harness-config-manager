@@ -235,6 +235,7 @@ function currentHarnessLabel() {
 }
 
 // ---------- skills ----------
+const pluginLabel = (p) => p === 'built-in' ? 'built in' : /^your /.test(p || '') ? 'from ' + esc(p) : 'plugin ' + esc(p);
 function skillHarnessMap() { return Object.fromEntries(S.data.skills.harnesses.map((h) => [h.id, h])); }
 function scopedInstalls(s) { const sc = S.scope.skills; return sc === 'all' ? s.installs : s.installs.filter((i) => i.harness === sc); }
 function skillState(s) {
@@ -286,7 +287,7 @@ function renderSkills() {
     const onlyPlugin = st.ins.length && st.ins.every((i) => i.readOnly);
     const badges = (onlyPlugin ? '<span class="badge" title="Comes with a plugin; switch it in Plugins &amp; extensions">plugin</span>' : s.inStore ? '' : '<span class="badge warn">local</span>') + (st.ins.some((i) => i.broken) ? '<span class="badge bad">broken</span>' : '');
     const k0 = st.ins[0] || {};
-    const count = S.scope.skills === 'all' ? (st.total ? `${st.on}/${st.total}` : '<span class="badge">unlinked</span>') : (k0.kind === 'plugin' ? (k0.plugin === 'built-in' ? 'built in' : 'plugin ' + esc(k0.plugin)) : k0.kind === 'link' ? 'link' : 'folder');
+    const count = S.scope.skills === 'all' ? (st.total ? `${st.on}/${st.total}` : '<span class="badge">unlinked</span>') : (k0.kind === 'plugin' ? pluginLabel(k0.plugin) : k0.kind === 'link' ? 'link' : 'folder');
     h += `<tr data-name="${esc(s.name)}" class="${S.sel.has(s.name) ? 'sel' : ''} ${S.active === s.name ? 'active' : ''}">
       <td><input type="checkbox" class="rowsel" ${S.sel.has(s.name) ? 'checked' : ''}></td>
       <td class="name">${esc(s.name)}${badges}</td><td class="desc" title="${esc(s.description)}">${esc(s.description)}</td>
@@ -309,12 +310,12 @@ function renderSkillDetail() {
   const hm = skillHarnessMap();
   let h = `<h2>${esc(s.name)}</h2><p>${esc(s.description || 'No description')}</p>
     <div>${s.inStore ? '<span class="badge ok">in ~/.agents/skills</span>' : '<span class="badge warn">not in store</span>'}${s.source ? `<span class="badge">${esc(s.source)}</span>` : ''}</div>
-    <div class="actions"><button data-d="view">View SKILL.md</button><button data-d="files">Edit skill files…</button>
+    <div class="actions"><button data-d="view">View SKILL.md</button><button data-d="files">Edit skill files…</button><button data-d="export" title="Make a ZIP to upload in Claude Desktop or claude.ai: Customize > Skills > Upload a skill">Package for Claude Desktop…</button>
     <button data-d="all-off">Disable everywhere</button><button data-d="all-on">Enable everywhere</button>
     <button data-d="prune" class="danger">Uninstall…</button></div>
     <div style="color:var(--muted);margin:8px 0 4px">${s.installs.length} install(s), ${s.installs.filter((i) => i.enabled).length} enabled</div>`;
   for (const i of s.installs) {
-    h += `<div class="row"><div class="h"><div>${esc(hm[i.harness] ? hm[i.harness].label : i.harness)} ${i.kind === 'dir' ? '<span class="badge warn">folder</span>' : ''}${i.kind === 'plugin' ? `<span class="badge">${i.plugin === 'built-in' ? 'built in' : 'plugin ' + esc(i.plugin)}</span>` : ''}${i.broken ? '<span class="badge bad">broken</span>' : ''}${i.reason === 'prune' ? '<span class="badge bad">uninstalled</span>' : ''}</div>
+    h += `<div class="row"><div class="h"><div>${esc(hm[i.harness] ? hm[i.harness].label : i.harness)} ${i.kind === 'dir' ? '<span class="badge warn">folder</span>' : ''}${i.kind === 'plugin' ? `<span class="badge">${pluginLabel(i.plugin)}</span>` : ''}${i.broken ? '<span class="badge bad">broken</span>' : ''}${i.reason === 'prune' ? '<span class="badge bad">uninstalled</span>' : ''}</div>
       <div title="${esc(i.path)}">${esc(i.path)}${i.target ? ' → ' + esc(i.target) : ''}</div></div>
       ${i.enabled ? `<button data-reveal="${esc(i.path)}" title="Show in ${FM}">📂</button>` : ''}
       <button class="sw ${i.enabled ? 'on' : 'off'}" data-h="${esc(i.harness)}" ${i.readOnly ? `disabled title="${i.plugin === 'built-in' ? 'Built into Codex' : 'Comes with plugin ' + esc(i.plugin) + '; switch the plugin in Plugins &amp; extensions'}"` : ''}></button></div>`;
@@ -483,7 +484,7 @@ function renderPlugins() {
       <td class="name">${esc(p.name)}<span class="badge">${p.kind}</span>${p.installed ? '' : '<span class="badge">not installed</span>'}</td>
       <td>${esc(p.harness)}</td><td class="desc" style="max-width:180px">${esc(p.market)}</td><td class="num">${esc(p.version)}</td>
       <td class="desc" title="${esc(p.description)}">${esc(p.description)}</td>
-      <td><button class="sw ${p.enabled ? 'on' : 'off'}" data-toggle></button></td></tr>`;
+      <td><button class="sw ${p.enabled ? 'on' : 'off'}" data-toggle ${p.readOnly ? 'disabled title="Managed in Claude Desktop (Customize &gt; Plugins)"' : ''}></button></td></tr>`;
   }
   $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No plugins or extensions match.</td></tr></tbody>';
   $('scope').innerHTML = `${rows.length} shown`;
@@ -498,7 +499,7 @@ function renderPlugins() {
     <div class="row"><div class="h"><div>Switch lives in</div><div title="${esc(p.file)}">${esc(p.file)}</div></div><button data-open="${esc(p.file)}">✎</button></div>
     ${p.mcp && p.mcp.length ? `<div class="row"><div class="h"><div>MCP servers</div><div>${esc(p.mcp.join(', '))}</div></div></div>` : ''}
     ${p.userConfig && p.userConfig.length ? `<div class="row"><div class="h"><div>Settings</div><div>${esc(p.userConfig.join(', '))}</div></div></div>` : ''}
-    <div class="actions"><button class="sw ${p.enabled ? 'on' : 'off'}" data-ptoggle></button> ${p.enabled ? 'Enabled' : 'Disabled'}</div>`;
+    <div class="actions"><button class="sw ${p.enabled ? 'on' : 'off'}" data-ptoggle ${p.readOnly ? 'disabled' : ''}></button> ${p.readOnly ? 'Managed in Claude Desktop (Customize &gt; Plugins)' : p.enabled ? 'Enabled' : 'Disabled'}</div>`;
   d.className = 'detail show';
 }
 function renderPluginSidebar() {
@@ -1195,6 +1196,11 @@ $('detail').onclick = async (e) => {
     if (b.dataset.d === 'all-off') return toggleSkills([name], false, null);
     if (b.dataset.d === 'all-on') return toggleSkills([name], true, null);
     if (b.dataset.d === 'prune') return confirmPrune([name]);
+    if (b.dataset.d === 'export') {
+      try { const r = await api('POST', '/api/skills/export', { name }); toast('Saved ' + r.file + ' (' + fmtSize(r.size) + ').\nIn Claude Desktop open Customize > Skills, click +, then Create skill > Upload a skill, and pick this ZIP. Skills you upload sync to your Claude account.'); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
     if (b.dataset.d === 'files') { S.tab = 'files'; S.scope.files = 'skill:' + name; S.active = null; S.search = $('search').value = ''; return render(); }
     if (b.dataset.d === 'view') {
       const r = await api('GET', '/api/skill?name=' + encodeURIComponent(name)).catch(() => ({}));

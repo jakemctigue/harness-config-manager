@@ -16,7 +16,7 @@ Harness Config Manager puts all of it in one local window. You can see everythin
 
 ## What it covers
 
-- **Skills:** search hundreds of skills across every harness, including the ones plugins bring, then disable or uninstall them in bulk.
+- **Skills:** search hundreds of skills across every harness, including the ones plugins bring and Claude Desktop's, then disable or uninstall them in bulk.
 - **MCP servers:** turn servers on or off in each harness's config, see which processes are running and which harness owns them, and restart them.
 - **Plugins and extensions:** Claude Code plugins, Codex / ChatGPT app plugins, Gemini CLI extensions and Claude Desktop extensions.
 - **`.mcpb` bundles:** drop a bundle on the window to install it into Claude Desktop or any harness.
