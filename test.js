@@ -90,4 +90,5 @@ console.log('all sandbox tests passed');
 
 // The config tests need their own sandbox home (paths are fixed at require time), so run them in a child.
 const run = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'test-config.js')], { stdio: 'inherit', env: Object.assign({}, process.env, { SKM_HOME: '' }) });
-process.exitCode = run.status;
+const run2 = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'test-backup.js')], { stdio: 'inherit', env: Object.assign({}, process.env, { SKM_HOME: '' }) });
+process.exitCode = run.status || run2.status;

@@ -128,6 +128,7 @@ td.hact button { margin: 2px 0; }
     <button data-tab="files">Config files</button>
     <button data-tab="env">Env vars</button>
     <button data-tab="harnesses">Harnesses</button>
+    <button data-tab="backups">Backups</button>
     <button data-tab="trash">Trash</button>
   </div>
   <div class="stats" id="stats"></div>
@@ -234,6 +235,7 @@ function currentHarnessLabel() {
 }
 
 // ---------- skills ----------
+const pluginLabel = (p) => p === 'built-in' ? 'built in' : /^your /.test(p || '') ? 'from ' + esc(p) : 'plugin ' + esc(p);
 function skillHarnessMap() { return Object.fromEntries(S.data.skills.harnesses.map((h) => [h.id, h])); }
 function scopedInstalls(s) { const sc = S.scope.skills; return sc === 'all' ? s.installs : s.installs.filter((i) => i.harness === sc); }
 function skillState(s) {
@@ -250,6 +252,7 @@ const SKILL_FILTERS = {
   local: ['Local copies (not from store)', (s, st) => st.ins.some((i) => i.local)],
   dupes: ['Duplicated real copies', (s) => s.installs.filter((i) => i.kind === 'dir').length + (s.inStore ? 1 : 0) > 1],
   broken: ['Broken links', (s, st) => st.ins.some((i) => i.broken)],
+  plugin: ['Comes with a plugin or built in', (s, st) => st.ins.some((i) => i.kind === 'plugin')],
   wide: ['In 20+ harnesses', (s) => s.installs.length >= 20],
 };
 
@@ -281,14 +284,16 @@ function renderSkills() {
     <th data-sort="name">Skill${arrow('name')}</th><th>Description</th><th data-sort="source">Source${arrow('source')}</th>
     <th data-sort="count">${S.scope.skills === 'all' ? 'Harnesses' : 'Installed'}${arrow('count')}</th><th style="width:60px">On</th></tr></thead><tbody>`;
   for (const { s, st } of rows) {
-    const badges = (s.inStore ? '' : '<span class="badge warn">local</span>') + (st.ins.some((i) => i.broken) ? '<span class="badge bad">broken</span>' : '');
-    const count = S.scope.skills === 'all' ? (st.total ? `${st.on}/${st.total}` : '<span class="badge">unlinked</span>') : (st.ins[0].kind === 'link' ? 'link' : 'folder');
+    const onlyPlugin = st.ins.length && st.ins.every((i) => i.readOnly);
+    const badges = (onlyPlugin ? '<span class="badge" title="Comes with a plugin; switch it in Plugins &amp; extensions">plugin</span>' : s.inStore ? '' : '<span class="badge warn">local</span>') + (st.ins.some((i) => i.broken) ? '<span class="badge bad">broken</span>' : '');
+    const k0 = st.ins[0] || {};
+    const count = S.scope.skills === 'all' ? (st.total ? `${st.on}/${st.total}` : '<span class="badge">unlinked</span>') : (k0.kind === 'plugin' ? pluginLabel(k0.plugin) : k0.kind === 'link' ? 'link' : 'folder');
     h += `<tr data-name="${esc(s.name)}" class="${S.sel.has(s.name) ? 'sel' : ''} ${S.active === s.name ? 'active' : ''}">
       <td><input type="checkbox" class="rowsel" ${S.sel.has(s.name) ? 'checked' : ''}></td>
       <td class="name">${esc(s.name)}${badges}</td><td class="desc" title="${esc(s.description)}">${esc(s.description)}</td>
       <td class="desc" style="max-width:180px">${esc(s.source || (s.inStore ? 'store' : ''))}</td>
       <td class="num">${count}</td>
-      <td><button class="sw ${st.mode}" data-toggle ${st.mode === 'none' ? 'disabled' : ''} title="${st.mode === 'mixed' ? 'Partly enabled; click to disable all' : ''}"></button></td></tr>`;
+      <td><button class="sw ${st.mode}" data-toggle ${st.mode === 'none' || onlyPlugin ? 'disabled' : ''} title="${onlyPlugin ? 'Comes with a plugin: switch the plugin in Plugins &amp; extensions' : st.mode === 'mixed' ? 'Partly enabled; click to disable all' : ''}"></button></td></tr>`;
   }
   h += '</tbody>';
   $('table').innerHTML = rows.length ? h : '<tbody><tr><td class="empty">No skills match.</td></tr></tbody>';
@@ -305,15 +310,15 @@ function renderSkillDetail() {
   const hm = skillHarnessMap();
   let h = `<h2>${esc(s.name)}</h2><p>${esc(s.description || 'No description')}</p>
     <div>${s.inStore ? '<span class="badge ok">in ~/.agents/skills</span>' : '<span class="badge warn">not in store</span>'}${s.source ? `<span class="badge">${esc(s.source)}</span>` : ''}</div>
-    <div class="actions"><button data-d="view">View SKILL.md</button><button data-d="files">Edit skill files…</button>
+    <div class="actions"><button data-d="view">View SKILL.md</button><button data-d="files">Edit skill files…</button><button data-d="export" title="Make a ZIP to upload in Claude Desktop or claude.ai: Customize > Skills > Upload a skill">Package for Claude Desktop…</button>
     <button data-d="all-off">Disable everywhere</button><button data-d="all-on">Enable everywhere</button>
     <button data-d="prune" class="danger">Uninstall…</button></div>
     <div style="color:var(--muted);margin:8px 0 4px">${s.installs.length} install(s), ${s.installs.filter((i) => i.enabled).length} enabled</div>`;
   for (const i of s.installs) {
-    h += `<div class="row"><div class="h"><div>${esc(hm[i.harness] ? hm[i.harness].label : i.harness)} ${i.kind === 'dir' ? '<span class="badge warn">folder</span>' : ''}${i.broken ? '<span class="badge bad">broken</span>' : ''}${i.reason === 'prune' ? '<span class="badge bad">uninstalled</span>' : ''}</div>
+    h += `<div class="row"><div class="h"><div>${esc(hm[i.harness] ? hm[i.harness].label : i.harness)} ${i.kind === 'dir' ? '<span class="badge warn">folder</span>' : ''}${i.kind === 'plugin' ? `<span class="badge">${pluginLabel(i.plugin)}</span>` : ''}${i.broken ? '<span class="badge bad">broken</span>' : ''}${i.reason === 'prune' ? '<span class="badge bad">uninstalled</span>' : ''}</div>
       <div title="${esc(i.path)}">${esc(i.path)}${i.target ? ' → ' + esc(i.target) : ''}</div></div>
       ${i.enabled ? `<button data-reveal="${esc(i.path)}" title="Show in ${FM}">📂</button>` : ''}
-      <button class="sw ${i.enabled ? 'on' : 'off'}" data-h="${esc(i.harness)}"></button></div>`;
+      <button class="sw ${i.enabled ? 'on' : 'off'}" data-h="${esc(i.harness)}" ${i.readOnly ? `disabled title="${i.plugin === 'built-in' ? 'Built into Codex' : 'Comes with plugin ' + esc(i.plugin) + '; switch the plugin in Plugins &amp; extensions'}"` : ''}></button></div>`;
   }
   if (!s.installs.length) h += '<p>This skill is in the store but no harness links to it.</p>';
   d.innerHTML = h; d.className = 'detail show';
@@ -479,7 +484,7 @@ function renderPlugins() {
       <td class="name">${esc(p.name)}<span class="badge">${p.kind}</span>${p.installed ? '' : '<span class="badge">not installed</span>'}</td>
       <td>${esc(p.harness)}</td><td class="desc" style="max-width:180px">${esc(p.market)}</td><td class="num">${esc(p.version)}</td>
       <td class="desc" title="${esc(p.description)}">${esc(p.description)}</td>
-      <td><button class="sw ${p.enabled ? 'on' : 'off'}" data-toggle></button></td></tr>`;
+      <td><button class="sw ${p.enabled ? 'on' : 'off'}" data-toggle ${p.readOnly ? 'disabled title="Managed in Claude Desktop (Customize &gt; Plugins)"' : ''}></button></td></tr>`;
   }
   $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No plugins or extensions match.</td></tr></tbody>';
   $('scope').innerHTML = `${rows.length} shown`;
@@ -494,7 +499,7 @@ function renderPlugins() {
     <div class="row"><div class="h"><div>Switch lives in</div><div title="${esc(p.file)}">${esc(p.file)}</div></div><button data-open="${esc(p.file)}">✎</button></div>
     ${p.mcp && p.mcp.length ? `<div class="row"><div class="h"><div>MCP servers</div><div>${esc(p.mcp.join(', '))}</div></div></div>` : ''}
     ${p.userConfig && p.userConfig.length ? `<div class="row"><div class="h"><div>Settings</div><div>${esc(p.userConfig.join(', '))}</div></div></div>` : ''}
-    <div class="actions"><button class="sw ${p.enabled ? 'on' : 'off'}" data-ptoggle></button> ${p.enabled ? 'Enabled' : 'Disabled'}</div>`;
+    <div class="actions"><button class="sw ${p.enabled ? 'on' : 'off'}" data-ptoggle ${p.readOnly ? 'disabled' : ''}></button> ${p.readOnly ? 'Managed in Claude Desktop (Customize &gt; Plugins)' : p.enabled ? 'Enabled' : 'Disabled'}</div>`;
   d.className = 'detail show';
 }
 function renderPluginSidebar() {
@@ -880,11 +885,148 @@ async function openMcpb(src) {
   };
 }
 async function mcpbFromFile(file) {
+  if (/\.hcmbackup$/i.test(file.name)) return backupFromFile(file);
   if (!/\.(mcpb|dxt)$/i.test(file.name)) return toast('That is not a .mcpb or .dxt bundle.', true);
   const localPath = window.skm ? window.skm.pathForFile(file) : '';
   openMcpb(localPath ? { localPath, fileName: file.name } : { b64: await fileToB64(file), fileName: file.name });
 }
 if (window.skm) window.skm.onOpenFile((p) => openMcpb({ localPath: p, fileName: p.split(/[\\/]/).pop() }));
+
+// ---------- backups ----------
+const BK_CATS = ['skills', 'mcp', 'plugins', 'config', 'env', 'userenv', 'state'];
+const bkCats = () => BK_CATS.filter((c) => c !== 'userenv' || (S.data && S.data.platform === 'win32'));
+async function renderBackups() {
+  if (!S.backups) { try { S.backups = await api('GET', '/api/backups'); } catch (e) { S.backups = { backups: [], folder: '' }; toast(e.message, true); } }
+  if (S.tab !== 'backups') return;
+  $('hlist').innerHTML = `<li class="on"><span class="lbl">Backups</span><span class="n">${S.backups.backups.length}</span></li>`;
+  const q = S.search.toLowerCase();
+  const rows = S.backups.backups.filter((b) => !q || (b.name + ' ' + (b.label || '')).toLowerCase().includes(q));
+  S.visible = [];
+  let h = `<thead><tr><th>Backup</th><th>Made</th><th>Contains</th><th>Size</th><th></th></tr></thead><tbody>`;
+  for (const b of rows) {
+    const what = b.damaged ? '<span class="badge bad">unreadable</span>' : (b.categories || []).map((c) => `<span class="badge ${c === 'env' ? 'warn' : ''}">${esc(c)}</span>`).join('');
+    h += `<tr data-bk="${esc(b.name)}"><td class="name">${esc(b.label || b.name)}${b.encrypted ? ' <span class="badge ok" title="Protected with a password">🔒 password</span>' : ''}</td>
+      <td class="num">${esc((b.createdAt || '').slice(0, 16).replace('T', ' '))}</td><td>${what}</td><td class="num">${fmtSize(b.size || 0)}</td>
+      <td><button class="restart" data-bkrestore ${b.damaged ? 'disabled' : ''}>Restore…</button> <button data-bkcopy>Copy to folder…</button> <button data-reveal="${esc(b.file)}">Show</button></td></tr>`;
+  }
+  $('table').innerHTML = rows.length ? h + '</tbody>' : '<tbody><tr><td class="empty">No backups yet. Click "Back up now" to make one.</td></tr></tbody>';
+  $('scope').innerHTML = `${rows.length} backup(s) in <code>${esc(S.backups.folder)}</code>`;
+  $('tbExtra').innerHTML = `<button class="primary" id="bkNew">Back up now…</button> <button id="bkFile">Restore from a file…</button><input type="file" id="bkPick" accept=".hcmbackup" hidden>`;
+  $('bkNew').onclick = openBackupCreate;
+  $('bkFile').onclick = () => $('bkPick').click();
+  $('bkPick').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) backupFromFile(f); };
+  $('note').textContent = 'A backup holds your skills, MCP server configs, plugin switches, settings and instruction files, and optionally your .env files, in one .hcmbackup file. Restoring shows what changed first and lets you pick; anything it replaces is kept in the Trash folder, so a restore can be undone. You can also drop a .hcmbackup file on the window.';
+  $('detail').className = 'detail';
+}
+
+async function openBackupCreate() {
+  busy(true, 'Measuring…');
+  let est;
+  try { est = await api('POST', '/api/backup/estimate', { cats: BK_CATS }); } catch (e) { busy(false); return toast(e.message, true); }
+  busy(false);
+  const row = (c) => {
+    const b = est.byCat[c] || { items: 0, bytes: 0 };
+    return `<label class="inst"><input type="checkbox" class="bkc" value="${c}" ${est.defaults.includes(c) ? 'checked' : ''}> <b>${esc(est.categories[c])}</b> <span class="hint">${b.items} item(s), ${fmtSize(b.bytes)}</span></label>`;
+  };
+  openModal('Back up harness configuration', `<p>Choose what to include.</p>${bkCats().map(row).join('')}
+    <p class="hint" id="bkEnvWarn" style="display:none;color:var(--warn)">.env files and environment variables hold API keys and other secrets (for example OPENROUTER_API_KEY). Set a password below so the backup is encrypted, and don't commit or share the file.</p>
+    <p class="hint">MCP configs and settings files can also contain API keys (for example a key passed as a server argument). A password encrypts the whole backup with AES-256.</p>
+    <label class="f">Name (optional)</label><input type="text" id="bkLabel" placeholder="e.g. before-cleanup">
+    <label class="f">Password (optional, at least 8 characters)</label><input type="password" id="bkPw" autocomplete="new-password">
+    <label class="f">Repeat password</label><input type="password" id="bkPw2" autocomplete="new-password">
+    <p class="hint">There is no way to recover a forgotten password.</p>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="bkGo">Back up</button>`);
+  const secretBoxes = [...document.querySelectorAll('.bkc[value="env"], .bkc[value="userenv"]')];
+  const syncWarn = () => { $('bkEnvWarn').style.display = secretBoxes.some((b) => b.checked) ? '' : 'none'; };
+  secretBoxes.forEach((b) => { b.onchange = syncWarn; }); syncWarn();
+  $('bkGo').onclick = async () => {
+    const cats = [...document.querySelectorAll('.bkc:checked')].map((c) => c.value);
+    const pw = $('bkPw').value;
+    if (!cats.length) return toast('Pick at least one thing to back up.', true);
+    if (pw !== $('bkPw2').value) return toast('The passwords do not match.', true);
+    if (pw && pw.length < 8) return toast('Use a password of at least 8 characters.', true);
+    if ((cats.includes('env') || cats.includes('userenv')) && !pw && !confirm('This backup will hold your secrets (.env files or environment variables) without a password. Continue?')) return;
+    closeModal();
+    busy(true, 'Backing up…');
+    try {
+      const r = await api('POST', '/api/backup/create', { cats, password: pw || undefined, label: $('bkLabel').value.trim() || undefined });
+      toast(`Backed up ${r.items} item(s), ${fmtSize(r.size)}${r.encrypted ? ', password protected' : ''}.\n${r.file}`);
+    } catch (e) { toast('Backup failed: ' + e.message, true); }
+    busy(false);
+    S.backups = null; render();
+  };
+}
+
+async function backupFromFile(file) {
+  const localPath = window.skm ? window.skm.pathForFile(file) : '';
+  if (!localPath && file.size > 60 * 1024 * 1024) {
+    return toast('That backup is too large to upload in the browser version. Copy it into the backups folder shown in the Backups tab, or use the desktop app.', true);
+  }
+  openRestore(localPath ? { localPath } : { b64: await fileToB64(file) }, file.name);
+}
+
+async function openRestore(src, title, password) {
+  busy(true, 'Reading backup…');
+  let ins;
+  try { ins = await api('POST', '/api/backup/inspect', Object.assign({}, src, { password })); }
+  catch (e) {
+    busy(false);
+    if (/password/i.test(e.message)) {
+      openModal('Backup password', `<p>${esc(/wrong/i.test(e.message) ? 'That password did not work. Try again.' : 'This backup is protected with a password.')}</p><label class="f">Password</label><input type="password" id="rsPw">`,
+        `<button onclick="closeModal()">Cancel</button><button class="primary" id="rsPwGo">Open</button>`);
+      setTimeout(() => $('rsPw').focus(), 30);
+      $('rsPwGo').onclick = () => { const p = $('rsPw').value; closeModal(); openRestore(src, title, p); };
+      return;
+    }
+    return toast('Could not read the backup: ' + e.message, true);
+  }
+  busy(false);
+  const cats = BK_CATS.filter((c) => ins.items.some((i) => i.cats[0] === c));
+  let body = `<p>Made ${esc((ins.header.createdAt || '').slice(0, 16).replace('T', ' '))} on ${esc(ins.header.os || '')}. Tick what to restore. Items that already match are left alone. Anything replaced is moved to the Trash folder first.</p>`;
+  for (const c of cats) {
+    const its = ins.items.filter((i) => i.cats[0] === c);
+    const s = ins.summary[c] || {};
+    const diff = its.filter((i) => i.status === 'new' || i.status === 'changed');
+    body += `<details ${diff.length ? 'open' : ''} style="margin:8px 0"><summary><label><input type="checkbox" class="rsc" value="${c}" ${diff.length ? 'checked' : ''}> <b>${esc(ins.categories[c])}</b></label>
+      <span class="hint">${s.changed || 0} changed, ${s.new || 0} missing here, ${s.same || 0} same</span></summary>`;
+    for (const i of its) {
+      const badge = i.status === 'same' ? '<span class="badge">same</span>' : i.status === 'new' ? '<span class="badge ok">missing here</span>' : i.status === 'changed' ? '<span class="badge warn">changed</span>' : '<span class="badge bad">not valid here</span>';
+      body += `<label class="inst"><input type="checkbox" class="rsi" data-c="${c}" value="${esc(i.id)}" ${i.status === 'new' || i.status === 'changed' ? 'checked' : ''} ${i.status === 'same' || i.status === 'invalid' ? 'disabled' : ''}> ${badge} <code title="${esc(i.rel)}">${esc(i.type === 'regvar' ? i.rel.replace(/^\$USERENV\//, '') : i.rel)}${i.type === 'link' ? ' → ' + esc(i.target) : i.type === 'dir' ? ` (${i.files} files)` : ''}</code></label>`;
+    }
+    body += '</details>';
+  }
+  openModal('Restore ' + (title || 'backup'), body, `<span class="hint" style="margin-right:auto" id="rsCount"></span><button onclick="closeModal()">Cancel</button><button class="primary" id="rsGo">Restore</button>`);
+  const count = () => { const n = document.querySelectorAll('.rsi:checked').length; $('rsCount').textContent = `${n} item(s) selected`; $('rsGo').disabled = !n; };
+  document.querySelectorAll('.rsc').forEach((cb) => { cb.onchange = () => { document.querySelectorAll(`.rsi[data-c="${cb.value}"]:not(:disabled)`).forEach((x) => { x.checked = cb.checked; }); count(); }; });
+  document.querySelectorAll('.rsi').forEach((cb) => { cb.onchange = count; });
+  count();
+  $('rsGo').onclick = async () => {
+    const ids = [...document.querySelectorAll('.rsi:checked')].map((c) => c.value);
+    closeModal();
+    busy(true, 'Restoring…');
+    try {
+      const r = await api('POST', '/api/backup/restore', Object.assign({}, src, { password, ids }));
+      toast(`Restored ${r.changed} item(s)` + (r.skipped ? `, ${r.skipped} already matched` : '') + (r.replacedTo ? `.\nWhat it replaced is in ${r.replacedTo}` : '.') +
+        (r.envChanged ? '\nNew terminals and harnesses restarted from this app see the restored environment variables.' : '') +
+        (r.errors.length ? `\n${r.errors.length} problem(s):\n` + r.errors.slice(0, 6).join('\n') : ''), r.errors.length > 0,
+        `<button class="restart" onclick="confirmRestartAll()">Restart all coding harnesses</button>`);
+    } catch (e) { toast('Restore failed: ' + e.message, true); }
+    S.data = await api('GET', '/api/scan').catch(() => S.data);
+    S.files = null; S.env = null; S.backups = null;
+    busy(false);
+    render();
+  };
+}
+
+function copyBackup(name) {
+  openModal('Copy backup to a folder', `<label class="f">Folder</label><input type="text" id="cpDir" placeholder="e.g. D:\\Backups or ~/Documents"><p class="hint">For example a USB drive or a synced folder. The backup stays in the backups folder too.</p>`,
+    `<button onclick="closeModal()">Cancel</button><button class="primary" id="cpGo">Copy</button>`);
+  setTimeout(() => $('cpDir').focus(), 30);
+  $('cpGo').onclick = async () => {
+    try { const r = await api('POST', '/api/backup/copy', { name, folder: $('cpDir').value.trim() }); closeModal(); toast('Copied to ' + r.file); }
+    catch (e) { toast(e.message, true); }
+  };
+}
 
 // ---------- trash ----------
 function renderTrash() {
@@ -904,7 +1046,7 @@ function renderTrash() {
 
 // ---------- shell ----------
 const FILTERS = { skills: SKILL_FILTERS, mcp: MCP_FILTERS, plugins: PLUGIN_FILTERS, files: FILE_FILTERS, env: { all: ['All'], on: ['Enabled'], off: ['Disabled'] } };
-const PLACEHOLDER = { skills: 'Search skills by name, description or source', mcp: 'Search servers or commands', plugins: 'Search plugins and extensions', files: 'Search files', env: 'Search variables', harnesses: 'Search harnesses', trash: 'Search uninstalled skills' };
+const PLACEHOLDER = { skills: 'Search skills by name, description or source', mcp: 'Search servers or commands', plugins: 'Search plugins and extensions', files: 'Search files', env: 'Search variables', harnesses: 'Search harnesses', backups: 'Search backups', trash: 'Search uninstalled skills' };
 function render() {
   if (!S.data) return;
   const sk = S.data.skills, m = S.data.mcp, pl = S.data.plugins;
@@ -929,6 +1071,7 @@ function render() {
   else if (S.tab === 'files') renderFiles();
   else if (S.tab === 'env') renderEnv();
   else if (S.tab === 'harnesses') renderHarnesses();
+  else if (S.tab === 'backups') renderBackups();
   else renderTrash();
   renderBulk();
 }
@@ -1012,6 +1155,12 @@ $('table').onclick = (e) => {
     return;
   }
   // harnesses
+  const bk = e.target.closest('tr[data-bk]');
+  if (bk) {
+    if (e.target.hasAttribute('data-bkrestore')) return openRestore({ name: bk.dataset.bk }, bk.dataset.bk);
+    if (e.target.hasAttribute('data-bkcopy')) return copyBackup(bk.dataset.bk);
+    return;
+  }
   const hr = e.target.closest('tr[data-hid]');
   if (hr) {
     if (e.target.hasAttribute('data-hrestart')) return confirmRestart([hr.dataset.hid]);
@@ -1047,6 +1196,11 @@ $('detail').onclick = async (e) => {
     if (b.dataset.d === 'all-off') return toggleSkills([name], false, null);
     if (b.dataset.d === 'all-on') return toggleSkills([name], true, null);
     if (b.dataset.d === 'prune') return confirmPrune([name]);
+    if (b.dataset.d === 'export') {
+      try { const r = await api('POST', '/api/skills/export', { name }); toast('Saved ' + r.file + ' (' + fmtSize(r.size) + ').\nIn Claude Desktop open Customize > Skills, click +, then Create skill > Upload a skill, and pick this ZIP. Skills you upload sync to your Claude account.'); }
+      catch (err) { toast(err.message, true); }
+      return;
+    }
     if (b.dataset.d === 'files') { S.tab = 'files'; S.scope.files = 'skill:' + name; S.active = null; S.search = $('search').value = ''; return render(); }
     if (b.dataset.d === 'view') {
       const r = await api('GET', '/api/skill?name=' + encodeURIComponent(name)).catch(() => ({}));
